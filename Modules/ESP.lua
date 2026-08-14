@@ -272,7 +272,7 @@ function ESP.Init(Config)
 
                     -- HEALTH
                     data.HealthText.Size = 13
-                    data.HealthText.Center = false
+                    data.HealthText.Center = true
                     data.HealthText.Outline = true
                     data.HealthText.Color = Color3.new(1, 1, 1)
                     data.HealthText.Visible = false
@@ -336,7 +336,7 @@ function ESP.Init(Config)
                     healthLabel.TextStrokeTransparency = 0.5
                     healthLabel.Font = Enum.Font.Gotham
                     healthLabel.TextScaled = true
-                    healthLabel.TextXAlignment = Enum.TextXAlignment.Left
+                    healthLabel.TextXAlignment = Enum.TextXAlignment.Center
                     healthLabel.Parent = gui
 
                     ESP_Drawings[plr] = {
@@ -357,22 +357,44 @@ function ESP.Init(Config)
 
             if UseDrawing and UseSquare then
 
-data.NameText.Position = UDim2.new(0, CenterPos.X - 75, 0, Y - 40)
-data.NameText.Visible = ESPConfig.DrawName
-data.NameText.Text = plr.Name
+                -- BOX
+                data.Box.Visible = ESPConfig.DrawBox
+                data.Box.Position = Vector2.new(X, Y)
+                data.Box.Size = Vector2.new(Width, Height)
+                data.Box.Color = ESPConfig.BoxColor
 
-data.DistText.Position = UDim2.new(0, CenterPos.X - 75, 0, Y - 20)
-data.DistText.Visible = ESPConfig.DrawDistance
-data.DistText.Text = Distance .. " M"
+                -- NOME EM CIMA
+                data.NameText.Visible = ESPConfig.DrawName
+                data.NameText.Position =
+                    Vector2.new(CenterPos.X, Y - 40)
+                data.NameText.Text = plr.Name
 
-data.HealthText.Position = UDim2.new(0, CenterPos.X - 75, 0, Y + Height + 5)
-data.HealthText.Visible = ESPConfig.DrawHealth
-data.HealthText.Text = string.format("%d/%d", Humanoid.Health, Humanoid.MaxHealth)
+                -- DISTÂNCIA ABAIXO DO NOME
+                data.DistText.Visible = ESPConfig.DrawDistance
+                data.DistText.Position =
+                    Vector2.new(CenterPos.X, Y - 20)
+                data.DistText.Text = Distance .. " M"
+
+                -- VIDA EMBAIXO DA BOX
+                data.HealthText.Visible = ESPConfig.DrawHealth
+                data.HealthText.Center = true
+                data.HealthText.Position =
+                    Vector2.new(
+                        CenterPos.X,
+                        Y + Height + 5
+                    )
+                data.HealthText.Text =
+                    string.format(
+                        "%d/%d",
+                        Humanoid.Health,
+                        Humanoid.MaxHealth
+                    )
 
             else
 
                 data.Container.Enabled = true
 
+                -- BOX
                 data.Box.Size =
                     UDim2.new(0, Width, 0, Height)
 
@@ -385,19 +407,7 @@ data.HealthText.Text = string.format("%d/%d", Humanoid.Health, Humanoid.MaxHealt
                 data.Box.Visible =
                     ESPConfig.DrawBox
 
-                data.HealthText.Position =
-                    UDim2.new(0, X, 0, Y - 20)
-
-                data.HealthText.Visible =
-                    ESPConfig.DrawHealth
-
-                data.HealthText.Text =
-                    string.format(
-                        "%d/%d",
-                        Humanoid.Health,
-                        Humanoid.MaxHealth
-                    )
-
+                -- NOME EM CIMA
                 data.NameText.Position =
                     UDim2.new(
                         0,
@@ -412,12 +422,13 @@ data.HealthText.Text = string.format("%d/%d", Humanoid.Health, Humanoid.MaxHealt
                 data.NameText.Text =
                     plr.Name
 
+                -- DISTÂNCIA ABAIXO DO NOME
                 data.DistText.Position =
                     UDim2.new(
                         0,
                         CenterPos.X - 75,
                         0,
-                        Y + Height + 5
+                        Y - 20
                     )
 
                 data.DistText.Visible =
@@ -425,6 +436,28 @@ data.HealthText.Text = string.format("%d/%d", Humanoid.Health, Humanoid.MaxHealt
 
                 data.DistText.Text =
                     Distance .. " M"
+
+                -- VIDA EMBAIXO DA BOX
+                data.HealthText.Position =
+                    UDim2.new(
+                        0,
+                        CenterPos.X - 75,
+                        0,
+                        Y + Height + 5
+                    )
+
+                data.HealthText.Visible =
+                    ESPConfig.DrawHealth
+
+                data.HealthText.TextXAlignment =
+                    Enum.TextXAlignment.Center
+
+                data.HealthText.Text =
+                    string.format(
+                        "%d/%d",
+                        Humanoid.Health,
+                        Humanoid.MaxHealth
+                    )
             end
         end
     end
