@@ -37,6 +37,7 @@ local SaveManager = LoadRemote("addons/SaveManager.lua")
 
 local Config = LoadRemote("Config.lua")
 local ESPModule = LoadRemote("Modules/ESP.lua")
+local DeadBodyModule =LoadRemote("Modules/DeadBodyChams.lua")
 local UI = LoadRemote("Ui.lua")
 
 print("Config carregado:", Config)
@@ -47,11 +48,20 @@ print("Config.ESP:", Config.ESP)
 ---------------------------------------------------------
 
 local ESP = ESPModule.Init(Config)
+local DeadBody = DeadBodyModule.Init(Config)
 
 local Context = {
     Library = Library,
     Config = Config,
     ToggleESP = ESP.Toggle
+}
+
+local Context = {
+    Library = Library,
+    Config = Config,
+    ToggleESP = ESP.Toggle,
+    ToggleDeadBodyChams = DeadBody.Toggle,
+    DestroyDeadBodyChams =DeadBody.Destroy
 }
 
 local Window, Tabs = UI.Create(Context)
