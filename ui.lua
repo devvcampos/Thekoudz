@@ -1,9 +1,12 @@
+-- UI.lua
+
 local UI = {}
 
-function UI:Create(context)
-    local Library = context.Library
-    local ESP = context.ESP
-    local Config = context.Config
+function UI:Create(Context)
+
+    local Library = Context.Library
+    local Config = Context.Config
+    local ESP = Context.ESP
 
     local Window = Library:CreateWindow({
         Title = "Origin- RBLX",
@@ -18,73 +21,85 @@ function UI:Create(context)
         UI = Window:AddTab("Configurações UI", "settings"),
     }
 
+    ---------------------------------------------------------
+    -- ESP
+    ---------------------------------------------------------
+
     local ESPGroup = Tabs.Main:AddLeftGroupbox("ESP", "eye")
 
-    ESPGroup:AddToggle("ToggleESP_Pro", {
-        Text = "Ativar ESP (Box, Nome, Vida)",
+    ESPGroup:AddToggle("ToggleESP", {
+        Text = "Ativar ESP",
         Default = false,
-        Callback = function(state)
-            ESP:Toggle(state)
+
+        Callback = function(Value)
+            ESP.Toggle(Value)
         end,
     })
 
     ESPGroup:AddDivider()
 
-    ESPGroup:AddToggle("ToggleBox", {
-        Text = "Mostrar Caixa (Box)",
-        Default = true,
-        Callback = function(value)
-            Config.ESP.DrawBox = value
+    ESPGroup:AddToggle("DrawBox", {
+        Text = "Mostrar Caixa",
+        Default = Config.ESP.DrawBox,
+
+        Callback = function(Value)
+            Config.ESP.DrawBox = Value
         end,
     })
 
-    ESPGroup:AddLabel("Cor da Caixa"):AddColorPicker("BoxColor", {
-        Default = Config.ESP.BoxColor,
-        Title = "Cor da Caixa",
-
-        Callback = function(value)
-            Config.ESP.BoxColor = value
-            ESP:SetBoxColor(value)
-        end,
-    })
-
-    ESPGroup:AddToggle("ToggleName", {
+    ESPGroup:AddToggle("DrawName", {
         Text = "Mostrar Nome",
-        Default = true,
-        Callback = function(value)
-            Config.ESP.DrawName = value
+        Default = Config.ESP.DrawName,
+
+        Callback = function(Value)
+            Config.ESP.DrawName = Value
         end,
     })
 
-    ESPGroup:AddToggle("ToggleHealth", {
+    ESPGroup:AddToggle("DrawHealth", {
         Text = "Mostrar Vida",
-        Default = true,
-        Callback = function(value)
-            Config.ESP.DrawHealth = value
+        Default = Config.ESP.DrawHealth,
+
+        Callback = function(Value)
+            Config.ESP.DrawHealth = Value
         end,
     })
 
-    ESPGroup:AddToggle("ToggleDistance", {
-        Text = "Mostrar Distância (M)",
-        Default = true,
-        Callback = function(value)
-            Config.ESP.DrawDistance = value
+    ESPGroup:AddToggle("DrawDistance", {
+        Text = "Mostrar Distância",
+        Default = Config.ESP.DrawDistance,
+
+        Callback = function(Value)
+            Config.ESP.DrawDistance = Value
         end,
     })
 
-    ESPGroup:AddSlider("MaxDistance", {
-        Text = "Alcance Máximo (M)",
-        Default = 1000,
+    ESPGroup:AddLabel("Cor da Caixa")
+        :AddColorPicker("ESP_BoxColor", {
+
+            Default = Config.ESP.BoxColor,
+
+            Callback = function(Color)
+                Config.ESP.BoxColor = Color
+            end,
+        })
+
+    ESPGroup:AddSlider("ESPDistance", {
+
+        Text = "Alcance Máximo",
+
+        Default = Config.MaxESP_Dist,
         Min = 0,
         Max = 100000,
         Rounding = 0,
 
-        Callback = function(value)
-            Config.MaxESP_Dist = value
+        Callback = function(Value)
+            Config.MaxESP_Dist = Value
         end,
     })
 
     return Window, Tabs
+
 end
 
 return UI
