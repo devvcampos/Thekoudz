@@ -357,32 +357,17 @@ function ESP.Init(Config)
 
             if UseDrawing and UseSquare then
 
-                data.Box.Visible = ESPConfig.DrawBox
-                data.Box.Position = Vector2.new(X, Y)
-                data.Box.Size = Vector2.new(Width, Height)
-                data.Box.Color = ESPConfig.BoxColor
+data.NameText.Position = UDim2.new(0, CenterPos.X - 75, 0, Y - 40)
+data.NameText.Visible = ESPConfig.DrawName
+data.NameText.Text = plr.Name
 
-                data.HealthText.Visible = ESPConfig.DrawHealth
-                data.HealthText.Position = Vector2.new(X, Y - 20)
-                data.HealthText.Text =
-                    string.format(
-                        "%d/%d",
-                        Humanoid.Health,
-                        Humanoid.MaxHealth
-                    )
+data.DistText.Position = UDim2.new(0, CenterPos.X - 75, 0, Y - 20)
+data.DistText.Visible = ESPConfig.DrawDistance
+data.DistText.Text = Distance .. " M"
 
-                data.NameText.Visible = ESPConfig.DrawName
-                data.NameText.Position =
-                    Vector2.new(CenterPos.X, Y - 40)
-                data.NameText.Text = plr.Name
-
-                data.DistText.Visible = ESPConfig.DrawDistance
-                data.DistText.Position =
-                    Vector2.new(
-                        CenterPos.X,
-                        Y + Height + 5
-                    )
-                data.DistText.Text = Distance .. " M"
+data.HealthText.Position = UDim2.new(0, CenterPos.X - 75, 0, Y + Height + 5)
+data.HealthText.Visible = ESPConfig.DrawHealth
+data.HealthText.Text = string.format("%d/%d", Humanoid.Health, Humanoid.MaxHealth)
 
             else
 
