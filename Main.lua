@@ -50,18 +50,24 @@ print("Config.ESP:", Config.ESP)
 local ESP = ESPModule.Init(Config)
 local DeadBody = DeadBodyModule.Init(Config)
 
-local Context = {
-    Library = Library,
-    Config = Config,
-    ToggleESP = ESP.Toggle
-}
+local ESP =
+    ESPModule.Init(Config)
+
+local DeadBody =
+    DeadBodyModule.Init(Config)
 
 local Context = {
     Library = Library,
     Config = Config,
+
     ToggleESP = ESP.Toggle,
-    ToggleDeadBodyChams = DeadBody.Toggle,
-    DestroyDeadBodyChams =DeadBody.Destroy
+    DestroyESP = ESP.Destroy,
+
+    ToggleDeadBodyChams =
+        DeadBody.Toggle,
+
+    DestroyDeadBodyChams =
+        DeadBody.Destroy,
 }
 
 local Window, Tabs = UI.Create(Context)
