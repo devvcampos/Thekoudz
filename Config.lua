@@ -1,14 +1,23 @@
-ESP = {
-    Enabled = false,
+local Config = {
+    MaxESP_Dist = 150,
 
-    DrawBox = true,
-    DrawName = true,
-    DrawHealth = true,
-    DrawDistance = true,
+    ESP = {
+        Enabled = false,
 
-    BoxColor = Color3.fromRGB(255, 255, 255),
+        DrawBox = true,
+        DrawName = true,
+        DrawHealth = true,
+        DrawDistance = true,
 
-    -- NOVO
-    VisibilityCheck = true,
-    VisibleBoxColor = Color3.fromRGB(0, 255, 0)
+        -- Cor normal, inclusive atrás de paredes
+        BoxColor = Color3.new(1, 1, 1),
+
+        -- Raycast de visibilidade
+        VisibilityCheck = true,
+
+        -- Cor quando o alvo estiver visível
+        VisibleBoxColor = Color3.fromRGB(0, 255, 0)
+    }
 }
+
+return Config
