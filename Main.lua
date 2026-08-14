@@ -34,7 +34,7 @@ local ESPModule = loadstring(
 ---------------------------------------------------------
 
 local UI = loadstring(
-    game:HttpGet(BASE_URL .. "UI.lua")
+    game:HttpGet(BASE_URL .. "Ui.lua")
 )()
 
 ---------------------------------------------------------
