@@ -1,46 +1,61 @@
--- Thekoudz/main.lua (Versão Simplificada e Robusta)
--- =============================================
--- ENTRY POINT
--- =============================================
-
 local BASE_URL = "https://raw.githubusercontent.com/devvcampos/Thekoudz/main/"
+
+local function LoadRemote(path)
+    local cacheBuster = tostring(DateTime.now().UnixTimestampMillis)
+    local url = BASE_URL .. path .. "?cb=" .. cacheBuster
+
+    local source = game:HttpGet(url)
+
+    local chunk, err = loadstring(source)
+
+    assert(
+        chunk,
+        "Erro compilando " .. path .. ": " .. tostring(err)
+    )
+
+    local result = chunk()
+
+    assert(
+        result ~= nil,
+        path .. " executou, mas retornou nil"
+    )
+
+    return result
+end
 
 ---------------------------------------------------------
 -- Carregar Dependências Principais
 ---------------------------------------------------------
-local Library = loadstring(game:HttpGet(BASE_URL .. "Library.lua"))()
-local ThemeManager = loadstring(game:HttpGet(BASE_URL .. "addons/ThemeManager.lua"))()
-local SaveManager = loadstring(game:HttpGet(BASE_URL .. "addons/SaveManager.lua"))()
+
+local Library = LoadRemote("Library.lua")
+local ThemeManager = LoadRemote("addons/ThemeManager.lua")
+local SaveManager = LoadRemote("addons/SaveManager.lua")
 
 ---------------------------------------------------------
--- Carregar Módulos do Projeto
+-- Carregar Módulos
 ---------------------------------------------------------
-local Config = loadstring(game:HttpGet(BASE_URL .. "Config.lua"))()
-local ESPModule = loadstring(game:HttpGet(BASE_URL .. "Modules/ESP.lua"))()
-local UI = loadstring(game:HttpGet(BASE_URL .. "Ui.lua"))()
+
+local Config = LoadRemote("Config.lua")
+local ESPModule = LoadRemote("Modules/ESP.lua")
+local UI = LoadRemote("Ui.lua")
+
+print("Config carregado:", Config)
+print("Config.ESP:", Config.ESP)
 
 ---------------------------------------------------------
--- Inicializar o ESP
+-- Inicializar ESP
 ---------------------------------------------------------
+
 local ESP = ESPModule.Init(Config)
 
----------------------------------------------------------
--- Criar o Contexto para a UI
----------------------------------------------------------
 local Context = {
     Library = Library,
     Config = Config,
-    ToggleESP = ESP.Toggle -- Passa apenas a função de ligar/desligar
+    ToggleESP = ESP.Toggle
 }
 
----------------------------------------------------------
--- Criar Interface
----------------------------------------------------------
 local Window, Tabs = UI.Create(Context)
 
----------------------------------------------------------
--- Configuração dos Managers (Tema e Salvar)
----------------------------------------------------------
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
 SaveManager:IgnoreThemeSettings()
