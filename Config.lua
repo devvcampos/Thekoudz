@@ -17,20 +17,20 @@ local Config = {
 
         -- Cor quando o alvo estiver visível
         VisibleBoxColor = Color3.fromRGB(0, 255, 0)
+    },
+
+    DeadBodyChams = {
+        Enabled = false,
+
+        Range = 500,
+
+        Color = Color3.fromRGB(255, 70, 70),
+
+        FillTransparency = 0.35,
+        OutlineTransparency = 0,
+
+        ShowLabel = true,
     }
 }
-
-DeadBodyChams = {
-    Enabled = false,
-
-    Range = 500,
-
-    Color = Color3.fromRGB(255, 70, 70),
-
-    FillTransparency = 0.35,
-    OutlineTransparency = 0,
-
-    ShowLabel = true,
-},
 
 return Config
