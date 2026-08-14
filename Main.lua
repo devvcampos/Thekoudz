@@ -1,99 +1,50 @@
--- Thekoudz/main.lua
+-- Thekoudz/Main.lua
 -- =============================================
--- ENTRY POINT
+-- ENTRY POINT (CARREGAMENTO DIRETO)
 -- =============================================
-
 local BASE_URL = "https://raw.githubusercontent.com/devvcampos/Thekoudz/main/"
 
 ---------------------------------------------------------
--- Loader
+-- Carregar Dependências (Biblioteca e Managers)
 ---------------------------------------------------------
-
-local Loader = loadstring(
-    game:HttpGet(BASE_URL .. "Loader.lua")
-)()
-
----------------------------------------------------------
--- Config
----------------------------------------------------------
-
-local Config = loadstring(
-    game:HttpGet(BASE_URL .. "Config.lua")
-)()
+local Library = loadstring(game:HttpGet(BASE_URL .. "Library.lua"))()
+local ThemeManager = loadstring(game:HttpGet(BASE_URL .. "addons/ThemeManager.lua"))()
+local SaveManager = loadstring(game:HttpGet(BASE_URL .. "addons/SaveManager.lua"))()
 
 ---------------------------------------------------------
--- ESP Module
+-- Carregar Módulos (Config, ESP e UI)
 ---------------------------------------------------------
-
-local ESPModule = loadstring(
-    game:HttpGet(BASE_URL .. "Modules/ESP.lua")
-)()
-
----------------------------------------------------------
--- UI
----------------------------------------------------------
-
-local UI = loadstring(
-    game:HttpGet(BASE_URL .. "Ui.lua")
-)()
+local Config = loadstring(game:HttpGet(BASE_URL .. "Config.lua"))()
+local ESP_Module = loadstring(game:HttpGet(BASE_URL .. "Modules/ESP.lua"))()
+local UI = loadstring(game:HttpGet(BASE_URL .. "Ui.lua"))() -- OBS: Use exatamente "Ui.lua" (U maiúsculo, i minúsculo)
 
 ---------------------------------------------------------
--- Dependencies
+-- Inicializar o ESP
 ---------------------------------------------------------
-
-local Dependencies = Loader:Load(BASE_URL)
-
-local Library = Dependencies.Library
-local ThemeManager = Dependencies.ThemeManager
-local SaveManager = Dependencies.SaveManager
+local ESP_Instance = ESP_Module.Init(Config)
 
 ---------------------------------------------------------
--- Initialize ESP
+-- Contexto para a UI
 ---------------------------------------------------------
-
-local ESP = ESPModule.Init(Config)
-
----------------------------------------------------------
--- Context
----------------------------------------------------------
-
 local Context = {
     Library = Library,
-
-    ThemeManager = ThemeManager,
-    SaveManager = SaveManager,
-
     Config = Config,
-
-    ESP = ESP,
+    ToggleESP = ESP_Instance.Toggle
 }
 
 ---------------------------------------------------------
--- Create UI
+-- Criar a Interface
 ---------------------------------------------------------
-
-local Window, Tabs = UI:Create(Context)
+local Window, Tabs = UI.Create(Context)
 
 ---------------------------------------------------------
--- Theme Manager
+-- Configurar Gerenciadores
 ---------------------------------------------------------
-
 ThemeManager:SetLibrary(Library)
-
----------------------------------------------------------
--- Save Manager
----------------------------------------------------------
-
 SaveManager:SetLibrary(Library)
-
 SaveManager:IgnoreThemeSettings()
-
----------------------------------------------------------
--- UI Settings
----------------------------------------------------------
-
 ThemeManager:ApplyToTab(Tabs.UI)
-
 SaveManager:BuildConfigSection(Tabs.UI)
-
 SaveManager:LoadAutoloadConfig()
+
+print(">> Origin-RBLX carregado com sucesso!")
