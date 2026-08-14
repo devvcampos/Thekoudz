@@ -1,14 +1,14 @@
-local Config = {
-    MaxESP_Dist = 150,
+ESP = {
+    Enabled = false,
 
-    ESP = {
-        Enabled = false,
-        DrawBox = true,
-        DrawName = true,
-        DrawHealth = true,
-        DrawDistance = true,
-        BoxColor = Color3.new(1, 1, 1)
-    }
+    DrawBox = true,
+    DrawName = true,
+    DrawHealth = true,
+    DrawDistance = true,
+
+    BoxColor = Color3.fromRGB(255, 255, 255),
+
+    -- NOVO
+    VisibilityCheck = true,
+    VisibleBoxColor = Color3.fromRGB(0, 255, 0)
 }
-
-return Config
