@@ -9,10 +9,10 @@ local Config = {
         DrawHealth = true,
         DrawDistance = true,
 
-        -- Cor normal, inclusive atrás de paredes
-        BoxColor = Color3.new(1, 1, 1),
+        -- Cor normal da Box
+        BoxColor = Color3.fromRGB(255, 255, 255),
 
-        -- Raycast de visibilidade
+        -- Visibility Check
         VisibilityCheck = true,
 
         -- Cor quando o alvo estiver visível
