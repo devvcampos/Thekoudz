@@ -1,44 +1,45 @@
--- Thekoudz/Main.lua
+-- Thekoudz/main.lua (Versão Simplificada e Robusta)
 -- =============================================
--- ENTRY POINT (CARREGAMENTO DIRETO)
+-- ENTRY POINT
 -- =============================================
+
 local BASE_URL = "https://raw.githubusercontent.com/devvcampos/Thekoudz/main/"
 
 ---------------------------------------------------------
--- Carregar Dependências (Biblioteca e Managers)
+-- Carregar Dependências Principais
 ---------------------------------------------------------
 local Library = loadstring(game:HttpGet(BASE_URL .. "Library.lua"))()
 local ThemeManager = loadstring(game:HttpGet(BASE_URL .. "addons/ThemeManager.lua"))()
 local SaveManager = loadstring(game:HttpGet(BASE_URL .. "addons/SaveManager.lua"))()
 
 ---------------------------------------------------------
--- Carregar Módulos (Config, ESP e UI)
+-- Carregar Módulos do Projeto
 ---------------------------------------------------------
 local Config = loadstring(game:HttpGet(BASE_URL .. "Config.lua"))()
-local ESP_Module = loadstring(game:HttpGet(BASE_URL .. "Modules/ESP.lua"))()
-local UI = loadstring(game:HttpGet(BASE_URL .. "Ui.lua"))() -- OBS: Use exatamente "Ui.lua" (U maiúsculo, i minúsculo)
+local ESPModule = loadstring(game:HttpGet(BASE_URL .. "Modules/ESP.lua"))()
+local UI = loadstring(game:HttpGet(BASE_URL .. "Ui.lua"))()
 
 ---------------------------------------------------------
 -- Inicializar o ESP
 ---------------------------------------------------------
-local ESP_Instance = ESP_Module.Init(Config)
+local ESP = ESPModule.Init(Config)
 
 ---------------------------------------------------------
--- Contexto para a UI
+-- Criar o Contexto para a UI
 ---------------------------------------------------------
 local Context = {
     Library = Library,
     Config = Config,
-    ToggleESP = ESP_Instance.Toggle
+    ToggleESP = ESP.Toggle -- Passa apenas a função de ligar/desligar
 }
 
 ---------------------------------------------------------
--- Criar a Interface
+-- Criar Interface
 ---------------------------------------------------------
 local Window, Tabs = UI.Create(Context)
 
 ---------------------------------------------------------
--- Configurar Gerenciadores
+-- Configuração dos Managers (Tema e Salvar)
 ---------------------------------------------------------
 ThemeManager:SetLibrary(Library)
 SaveManager:SetLibrary(Library)
