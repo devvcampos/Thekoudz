@@ -60,11 +60,42 @@ function UI.Create(Context)
     })
     ESPGroup:AddSlider("MaxDistance", {
         Text = "Alcance Máximo (M)",
-        Default = 1000,
+        Default = Config.MaxESP_Dist,
         Min = 0,
         Max = 100000,
         Rounding = 0,
-        Callback = function(v) _G.MaxESP_Dist = v end,
+        Callback = function(v) Config.MaxESP_Dist = v end,
+    })
+     ESPGroup:AddDivider()
+     ESPGroup:AddToggle("ToggleDeadBodyChams",{
+        Text = "Mostrar Corpos Mortos",
+        Default = Config.DeadBodyChams.Enabled,
+        Callback = function(v) Context.ToggleDeadBodyChams(v)end,
+    })
+     ESPGroup:AddLabel("Cor dos Corpos")
+     :AddColorPicker( "DeadBodyColor",{
+        Default =Config.DeadBodyChams.Color,
+        Title = "Cor dos Corpos Mortos",
+        Callback = function(v)
+        Config.DeadBodyChams.Color = v
+        end,
+    })
+    ESPGroup:AddSlider("DeadBodyRange",{
+        Text = "Alcance dos Corpos",
+        Default = Config.DeadBodyChams.Range,
+        Min = 10,
+        Max = 5000,
+        Rounding = 0,
+        Callback = function(v)
+        Config.DeadBodyChams.Range = v
+        end,
+    })
+    ESPGroup:AddToggle( "DeadBodyLabel",{
+        Text = "Mostrar Texto Dead Body",
+        Default =Config.DeadBodyChams.ShowLabel,
+        Callback = function(v)
+        Config.DeadBodyChams.ShowLabel = v
+        end,
     })
 
     -- =============================================
@@ -141,10 +172,20 @@ function UI.Create(Context)
     MenuGroup:AddButton({
         Text = "unload",
         DoubleClick = true,
-        Func = function()
-            ToggleESP(false)
-            Library:Unload()
-        end,
+Func = function()
+
+    if Context.DestroyDeadBodyChams then
+        Context.DestroyDeadBodyChams()
+    end
+
+    if Context.DestroyESP then
+        Context.DestroyESP()
+    elseif Context.ToggleESP then
+        Context.ToggleESP(false)
+    end
+
+    Library:Unload()
+end,
     })
 
     return Window, Tabs
