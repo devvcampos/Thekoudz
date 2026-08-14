@@ -1,21 +1,35 @@
 -- Thekoudz/Modules/ESP.lua
 -- =============================================
--- MÓDULO ESP (NÍVEL ELITE + DESIGN ORIGINAL)
+-- MÓDULO ESP (NÍVEL ELITE + DESIGN ORIGINAL DO USUÁRIO)
 -- =============================================
 
 local ESP = {}
 
 function ESP.Init(Config)
-    -- Cache de desenhos por jogador
-    local ESP_Drawings = {}
-    
-    -- Verifica suporte do executor aos desenhos
-    local UseDrawing = pcall(function() return Drawing.new(Config.textStr) end)
-    local UseSquare = pcall(function() return Drawing.new(Config.squareStr) end)
+    -- Função de ofuscação (mantida do seu código)
+    local function decode(t)
+        local s = ""
+        for _, c in ipairs(t) do s = s .. string.char(c) end
+        return s
+    end
 
-    -- Função de renderização chamada a cada frame
+    -- Strings ofuscadas
+    local drawingStr = decode({68,114,97,119,105,110,103})          -- "Drawing"
+    local squareStr = decode({83,113,117,97,114,101})               -- "Square"
+    local textStr = decode({84,101,120,116})                        -- "Text"
+    local runServiceStr = decode({82,117,110,83,101,114,118,105,99,101}) -- "RunService"
+    local guiNameStr = decode({83,121,115,116,101,109,95,77,101,116,114,105,99,115,95,85,73}) -- "System_Metrics_UI"
+
+    _G.MaxESP_Dist = 150
+
+    -- CORREÇÃO CRÍTICA: Usamos a tabela do Config para manter a UI e o ESP sincronizados!
+    local ESPConfig = Config.ESP
+
+    local ESP_Drawings = {}
+    local UseDrawing = pcall(function() return Drawing.new(textStr) end)
+    local UseSquare = pcall(function() return Drawing.new(squareStr) end)
+
     local function UpdateESP()
-        local ESPConfig = Config.ESP
         if not ESPConfig.Enabled then
             for _, data in pairs(ESP_Drawings) do
                 if UseDrawing then
@@ -69,7 +83,7 @@ function ESP.Init(Config)
                 continue
             end
 
-            -- Cálculo da caixa (Box) na tela
+            -- Cálculo da caixa (Box)
             local TopPos, TopVis = Camera:WorldToViewportPoint(Head.Position + Vector3.new(0, 0.5, 0))
             local BotPos, BotVis = Camera:WorldToViewportPoint(Root.Position - Vector3.new(0, 3, 0))
             local CenterPos, CenterVis = Camera:WorldToViewportPoint(Root.Position)
@@ -97,10 +111,10 @@ function ESP.Init(Config)
             if not ESP_Drawings[plr] then
                 if UseDrawing and UseSquare then
                     local data = {
-                        Box = Drawing.new(Config.squareStr),
-                        HealthText = Drawing.new(Config.textStr),
-                        NameText = Drawing.new(Config.textStr),
-                        DistText = Drawing.new(Config.textStr)
+                        Box = Drawing.new(squareStr),
+                        HealthText = Drawing.new(textStr),
+                        NameText = Drawing.new(textStr),
+                        DistText = Drawing.new(textStr)
                     }
                     data.Box.Thickness = 1
                     data.Box.Filled = false
@@ -123,9 +137,9 @@ function ESP.Init(Config)
 
                     ESP_Drawings[plr] = data
                 else
-                    -- Fallback GUI (caso o executor não tenha Drawing)
+                    -- Fallback GUI
                     local gui = Instance.new("ScreenGui")
-                    gui.Name = Config.guiNameStr
+                    gui.Name = guiNameStr
                     gui.Parent = LocalPlr:WaitForChild("PlayerGui")
                     gui.Enabled = true
 
@@ -195,7 +209,6 @@ function ESP.Init(Config)
                 data.DistText.Position = Vector2.new(CenterPos.X, Y + Height + 5)
                 data.DistText.Text = Distance .. " M"
             else
-                -- Fallback GUI update
                 data.Container.Enabled = true
                 data.Box.Size = UDim2.new(0, Width, 0, Height)
                 data.Box.Position = UDim2.new(0, X, 0, Y)
@@ -223,13 +236,12 @@ function ESP.Init(Config)
     local ESPThread = nil
 
     local function ToggleESP(State)
-        local ESPConfig = Config.ESP
         ESPConfig.Enabled = State
         
         if State and not ESPThread then
             -- ELITE: thread invisível para getconnections()
             ESPThread = task.spawn(function()
-                local RS = game:GetService(Config.runServiceStr)
+                local RS = game:GetService(runServiceStr)
                 while ESPConfig.Enabled do
                     UpdateESP()
                     RS.RenderStepped:Wait()
