@@ -90,9 +90,51 @@ function ESP.Init(Config)
         RemoveESP(plr)
     end)
 
-    -- =============================================
-    -- UPDATE ESP
-    -- =============================================
+local function IsTargetVisible(LocalPlr, Character, Head, Root)
+    local Camera = workspace.CurrentCamera
+
+    if not Camera or not Character then
+        return false
+    end
+
+    local Params = RaycastParams.new()
+
+    Params.FilterType = Enum.RaycastFilterType.Exclude
+    Params.IgnoreWater = true
+
+    Params.FilterDescendantsInstances = {
+        LocalPlr.Character
+    }
+
+    local Origin = Camera.CFrame.Position
+
+    local Targets = {
+        Head,
+        Root
+    }
+
+    for _, TargetPart in ipairs(Targets) do
+        if TargetPart then
+            local Direction = TargetPart.Position - Origin
+
+            local Result = workspace:Raycast(
+                Origin,
+                Direction,
+                Params
+            )
+
+            if not Result then
+                return true
+            end
+
+            if Result.Instance:IsDescendantOf(Character) then
+                return true
+            end
+        end
+    end
+
+    return false
+end
 
     local function UpdateESP()
         if not ESPConfig.Enabled then
@@ -158,6 +200,17 @@ function ESP.Init(Config)
             if not Root or not Head or not Humanoid then
                 RemoveESP(plr)
                 continue
+            end
+
+            local TargetVisible = false
+
+            if ESPConfig.VisibilityCheck then
+            TargetVisible = IsTargetVisible(
+            LocalPlr,
+            plr.Character,
+            Head,
+            Root
+            )
             end
 
             -- =============================================
@@ -361,7 +414,11 @@ function ESP.Init(Config)
                 data.Box.Visible = ESPConfig.DrawBox
                 data.Box.Position = Vector2.new(X, Y)
                 data.Box.Size = Vector2.new(Width, Height)
+                if ESPConfig.VisibilityCheck and TargetVisible then
+                data.Box.Color = ESPConfig.VisibleBoxColor
+                else
                 data.Box.Color = ESPConfig.BoxColor
+                end
 
                 -- NOME EM CIMA
                 data.NameText.Visible = ESPConfig.DrawName
