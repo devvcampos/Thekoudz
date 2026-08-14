@@ -20,4 +20,17 @@ local Config = {
     }
 }
 
+DeadBodyChams = {
+    Enabled = false,
+
+    Range = 500,
+
+    Color = Color3.fromRGB(255, 70, 70),
+
+    FillTransparency = 0.35,
+    OutlineTransparency = 0,
+
+    ShowLabel = true,
+},
+
 return Config
