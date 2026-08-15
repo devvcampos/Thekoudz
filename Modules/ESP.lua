@@ -45,6 +45,30 @@ function ESP.Init(Config)
     local ESP_Drawings = {}
 
     -- =============================================
+-- CACHE DE VISIBILIDADE / RAYCAST
+-- =============================================
+
+local VisibilityCache =
+    setmetatable({}, {
+        __mode = "k"
+    })
+
+local VisibilityParams =
+    RaycastParams.new()
+
+VisibilityParams.FilterType =
+    Enum.RaycastFilterType.Exclude
+
+VisibilityParams.IgnoreWater =
+    true
+
+local LastLocalCharacter = nil
+
+local VISIBILITY_INTERVAL =
+    ESPConfig.VisibilityInterval
+    or 0.10
+
+    -- =============================================
     -- LIMPEZA DE UM PLAYER
     -- =============================================
 
@@ -78,6 +102,7 @@ function ESP.Init(Config)
         end
 
         ESP_Drawings[plr] = nil
+        VisibilityCache[plr] = nil
     end
 
     -- =============================================
@@ -90,50 +115,140 @@ function ESP.Init(Config)
         RemoveESP(plr)
     end)
 
-local function IsTargetVisible(LocalPlr, Character, Head, Root)
-    local Camera = workspace.CurrentCamera
+local function IsTargetVisible(
+    LocalPlr,
+    Character,
+    Head,
+    Root
+)
+    local Camera =
+        workspace.CurrentCamera
 
-    if not Camera or not Character then
+    if
+        not Camera
+        or not Character
+    then
         return false
     end
 
-    local Params = RaycastParams.new()
+    -- Só atualiza o filtro quando
+    -- o Character local realmente muda.
+    if
+        LastLocalCharacter
+        ~= LocalPlr.Character
+    then
+        LastLocalCharacter =
+            LocalPlr.Character
 
-    Params.FilterType = Enum.RaycastFilterType.Exclude
-    Params.IgnoreWater = true
+        if LastLocalCharacter then
+            VisibilityParams
+                .FilterDescendantsInstances = {
+                    LastLocalCharacter
+                }
+        else
+            VisibilityParams
+                .FilterDescendantsInstances = {}
+        end
+    end
 
-    Params.FilterDescendantsInstances = {
-        LocalPlr.Character
-    }
-
-    local Origin = Camera.CFrame.Position
+    local Origin =
+        Camera.CFrame.Position
 
     local Targets = {
         Head,
         Root
     }
 
-    for _, TargetPart in ipairs(Targets) do
+    for _, TargetPart
+        in ipairs(Targets)
+    do
         if TargetPart then
-            local Direction = TargetPart.Position - Origin
 
-            local Result = workspace:Raycast(
-                Origin,
-                Direction,
-                Params
-            )
+            local Direction =
+                TargetPart.Position
+                - Origin
+
+            local Result =
+                workspace:Raycast(
+                    Origin,
+                    Direction,
+                    VisibilityParams
+                )
 
             if not Result then
                 return true
             end
 
-            if Result.Instance:IsDescendantOf(Character) then
+            if
+                Result.Instance
+                and Result.Instance
+                    :IsDescendantOf(
+                        Character
+                    )
+            then
                 return true
             end
         end
     end
 
     return false
+end
+
+    -- =============================================
+-- CACHE DO VISIBILITY CHECK
+-- =============================================
+
+local function GetCachedVisibility(
+    plr,
+    LocalPlr,
+    Character,
+    Head,
+    Root
+)
+    if
+        not ESPConfig.VisibilityCheck
+    then
+        return false
+    end
+
+    local now =
+        os.clock()
+
+    local Cached =
+        VisibilityCache[plr]
+
+    -- Cache ainda válido e pertence
+    -- ao mesmo Character.
+    if
+        Cached
+        and Cached.Character
+            == Character
+        and now
+            < Cached.ExpiresAt
+    then
+        return Cached.Visible
+    end
+
+    local Visible =
+        IsTargetVisible(
+            LocalPlr,
+            Character,
+            Head,
+            Root
+        )
+
+    VisibilityCache[plr] = {
+        Visible = Visible,
+
+        Character =
+            Character,
+
+        ExpiresAt =
+            now
+            + VISIBILITY_INTERVAL
+    }
+
+    return Visible
 end
   
     _G.MaxESP_Dist = _G.MaxESP_Dist or Config.MaxESP_Dist or 1000
@@ -202,17 +317,6 @@ end
             if not Root or not Head or not Humanoid then
                 RemoveESP(plr)
                 continue
-            end
-
-            local TargetVisible = false
-
-            if ESPConfig.VisibilityCheck then
-            TargetVisible = IsTargetVisible(
-            LocalPlr,
-            plr.Character,
-            Head,
-            Root
-            )
             end
 
             -- =============================================
@@ -298,6 +402,29 @@ end
 
                 continue
             end
+
+            -- =============================================
+-- VISIBILITY CHECK COM CACHE
+-- =============================================
+
+local TargetVisible = false
+
+if ESPConfig.VisibilityCheck then
+    TargetVisible =
+        GetCachedVisibility(
+            plr,
+            LocalPlr,
+            plr.Character,
+            Head,
+            Root
+        )
+end
+
+local Height =
+    math.abs(
+        BotPos.Y
+        - TopPos.Y
+    )
 
             local Height = math.abs(BotPos.Y - TopPos.Y)
             local Width = Height * 0.6
