@@ -60,7 +60,7 @@ function UI.Create(Context)
     })
     ESPGroup:AddSlider("MaxDistance", {
         Text = "Alcance Máximo (M)",
-        Default = Config.MaxESP_Dist,
+        Default = _G.MaxESP_Dist or 1000,
         Min = 0,
         Max = 100000,
         Rounding = 0,
