@@ -205,9 +205,7 @@ local function GetCachedVisibility(
     Head,
     Root
 )
-    if
-        not ESPConfig.VisibilityCheck
-    then
+    if not ESPConfig.VisibilityCheck then
         return false
     end
 
@@ -217,8 +215,10 @@ local function GetCachedVisibility(
     local Cached =
         VisibilityCache[plr]
 
-    -- Cache ainda válido e pertence
-    -- ao mesmo Character.
+    -- =============================================
+    -- CACHE AINDA VÁLIDO
+    -- =============================================
+
     if
         Cached
         and Cached.Character
@@ -229,6 +229,10 @@ local function GetCachedVisibility(
         return Cached.Visible
     end
 
+    -- =============================================
+    -- CACHE EXPIROU
+    -- =============================================
+
     local Visible =
         IsTargetVisible(
             LocalPlr,
@@ -237,6 +241,9 @@ local function GetCachedVisibility(
             Root
         )
 
+    local Interval =
+        GetVisibilityInterval(plr)
+
     VisibilityCache[plr] = {
         Visible = Visible,
 
@@ -244,8 +251,7 @@ local function GetCachedVisibility(
             Character,
 
         ExpiresAt =
-            now
-            + VISIBILITY_INTERVAL
+            now + Interval
     }
 
     return Visible
