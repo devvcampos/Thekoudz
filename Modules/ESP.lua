@@ -135,7 +135,9 @@ local function IsTargetVisible(LocalPlr, Character, Head, Root)
 
     return false
 end
-
+  
+    _G.MaxESP_Dist = _G.MaxESP_Dist or Config.MaxESP_Dist or 1000
+    
     local function UpdateESP()
         if not ESPConfig.Enabled then
             for _, data in pairs(ESP_Drawings) do
