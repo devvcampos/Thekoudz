@@ -1,522 +1,460 @@
-local DeadBodyChams = {}
+local M = {}
 
-function DeadBodyChams.Init(Config)
-    local Players = game:GetService("Players")
-    local RunService = game:GetService("RunService")
+function M.Init(C)
+    local function d(t)
+        local s = ""
+        for i = 1, #t do
+            s = s .. string.char(t[i])
+        end
+        return s
+    end
 
-    local LocalPlayer = Players.LocalPlayer
-    local Corpses = workspace:WaitForChild("Corpses")
+    local a = game:GetService(d({
+        80,108,97,121,101,114,115
+    }))
 
-    local Settings = Config.DeadBodyChams
+    local b = game:GetService(d({
+        82,117,110,83,101,114,118,105,99,101
+    }))
 
-   local Active = {}
-   local Running = false
-   local Thread = nil
-   local RenderConnection = nil
+    local p = a.LocalPlayer
 
-   local UseDrawingText = pcall(function()
-   local test = Drawing.new("Text")
-   test.Visible = false
-   test:Remove()
-   end)
+    local f = workspace:WaitForChild(d({
+        67,111,114,112,115,101,115
+    }))
 
-    -- =============================================
-    -- ROOT DO CORPO
-    -- =============================================
+    local S = C.DeadBodyChams
 
-    local function GetBodyRoot(Model)
-        if not Model then
+    local A = {}
+    local R = false
+    local T = nil
+    local X = nil
+
+    local q = pcall(function()
+        local x = Drawing.new(d({
+            84,101,120,116
+        }))
+
+        x.Visible = false
+        x:Remove()
+    end)
+
+    local function r(m)
+        if not m then
             return nil
         end
 
-        return Model:FindFirstChild("HumanoidRootPart")
-            or Model:FindFirstChild("UpperTorso")
-            or Model:FindFirstChild("Torso")
-            or Model:FindFirstChild("Head")
-            or Model.PrimaryPart
+        return m:FindFirstChild(d({
+            72,117,109,97,110,111,105,100,
+            82,111,111,116,80,97,114,116
+        }))
+        or m:FindFirstChild(d({
+            85,112,112,101,114,84,111,114,115,111
+        }))
+        or m:FindFirstChild(d({
+            84,111,114,115,111
+        }))
+        or m:FindFirstChild(d({
+            72,101,97,100
+        }))
+        or m.PrimaryPart
     end
 
-    local function GetBodyAnchor(Model)
-       if not Model then
-           return nil
-       end
+    local function h(m)
+        if not m then
+            return nil
+        end
 
-    return Model:FindFirstChild("Head")
-        or Model:FindFirstChild("UpperTorso")
-        or Model:FindFirstChild("Torso")
-        or Model:FindFirstChild("HumanoidRootPart")
-        or Model.PrimaryPart
+        return m:FindFirstChild(d({
+            72,101,97,100
+        }))
+        or m:FindFirstChild(d({
+            85,112,112,101,114,84,111,114,115,111
+        }))
+        or m:FindFirstChild(d({
+            84,111,114,115,111
+        }))
+        or m:FindFirstChild(d({
+            72,117,109,97,110,111,105,100,
+            82,111,111,116,80,97,114,116
+        }))
+        or m.PrimaryPart
     end
 
-    -- =============================================
-    -- DISTÂNCIA
-    -- =============================================
+    local function g(m)
+        local c = p.Character
 
-    local function GetDistance(Model)
-        local Character = LocalPlayer.Character
+        local l =
+            c and c:FindFirstChild(d({
+                72,117,109,97,110,111,105,100,
+                82,111,111,116,80,97,114,116
+            }))
 
-        local LocalRoot =
-            Character
-            and Character:FindFirstChild("HumanoidRootPart")
+        local z = r(m)
 
-        local BodyRoot = GetBodyRoot(Model)
-
-        if not LocalRoot or not BodyRoot then
+        if not l or not z then
             return math.huge
         end
 
-        return (
-            BodyRoot.Position
-            - LocalRoot.Position
-        ).Magnitude
+        return (z.Position - l.Position).Magnitude
     end
 
-    -- =============================================
-    -- REMOVER CHAMS
-    -- =============================================
+    local function x(m)
+        local v = A[m]
 
-    local function RemoveBody(Model)
-        local Data = Active[Model]
-
-        if not Data then
+        if not v then
             return
         end
 
-        if Data.Highlight then
-           pcall(function()
-                Data.Highlight:Destroy()
+        if v.H then
+            pcall(function()
+                v.H:Destroy()
             end)
         end
 
-        if Data.Text then
+        if v.T then
             pcall(function()
-               Data.Text:Remove()
-             end)
-       end
+                v.T:Remove()
+            end)
+        end
 
-        Active[Model] = nil
+        A[m] = nil
     end
 
-    -- =============================================
-    -- CRIAR CHAMS
-    -- =============================================
-
-    local function CreateBody(Model)
-        if Active[Model] then
-            return Active[Model]
+    local function n(m)
+        if A[m] then
+            return A[m]
         end
 
-        if not Model:IsA("Model") then
+        if
+            not m
+            or not m:IsA(d({
+                77,111,100,101,108
+            }))
+        then
             return nil
         end
 
-        local Root = GetBodyRoot(Model)
+        local z = r(m)
 
-        if not Root then
+        if not z then
             return nil
         end
 
-        -- =============================================
-        -- HIGHLIGHT
-        -- =============================================
+        local H = Instance.new(d({
+            72,105,103,104,108,105,103,104,116
+        }))
 
-        local Highlight = Instance.new("Highlight")
+        H.Name = d({
+            95,95,68,101,97,100,66,111,100,121,
+            72,105,103,104,108,105,103,104,116
+        })
 
-        Highlight.Name = "__DeadBodyHighlight"
+        H.Adornee = m
 
-        Highlight.Adornee = Model
-
-        Highlight.DepthMode =
+        H.DepthMode =
             Enum.HighlightDepthMode.AlwaysOnTop
 
-        Highlight.FillColor =
-            Settings.Color
+        H.FillColor =
+            S.Color
 
-        Highlight.OutlineColor =
-            Settings.Color
+        H.OutlineColor =
+            S.Color
 
-        Highlight.FillTransparency =
-            Settings.FillTransparency
+        H.FillTransparency =
+            S.FillTransparency
 
-        Highlight.OutlineTransparency =
-            Settings.OutlineTransparency
+        H.OutlineTransparency =
+            S.OutlineTransparency
 
-        Highlight.Parent = Model
+        H.Parent = m
 
--- =============================================
--- DEAD BODY TEXT
--- MESMO ESTILO DO ESP PRINCIPAL
--- =============================================
+        local L = nil
 
-local Text = nil
+        if q then
+            L = Drawing.new(d({
+                84,101,120,116
+            }))
 
-if UseDrawingText then
-    Text = Drawing.new("Text")
+            L.Size = 14
+            L.Center = true
+            L.Outline = true
 
-    Text.Size = 14
-    Text.Center = true
-    Text.Outline = true
+            L.Color =
+                Color3.new(1, 1, 1)
 
-    -- Igual ao nome do ESP principal
-    Text.Color = Color3.new(1, 1, 1)
+            L.Text = d({
+                68,101,97,100,32,98,111,100,121
+            })
 
-    Text.Text = "Dead body"
-    Text.Visible = false
-end
+            L.Visible = false
+        end
 
-Active[Model] = {
-    Highlight = Highlight,
-    Text = Text,
-    Anchor = GetBodyAnchor(Model)
-}
+        A[m] = {
+            H = H,
+            T = L,
+            P = h(m)
+        }
 
-        return Active[Model]
+        return A[m]
     end
 
-    -- =============================================
-    -- ATUALIZAR CORPO
-    -- =============================================
-
-    local function UpdateBody(Model)
-        if not Model.Parent then
-            RemoveBody(Model)
+    local function u(m)
+        if not m or not m.Parent then
+            x(m)
             return
         end
 
-        local Distance =
-            GetDistance(Model)
-
-        -- FORA DO RANGE
-        if Distance > Settings.Range then
-            RemoveBody(Model)
+        if g(m) > S.Range then
+            x(m)
             return
         end
 
-        local Data =
-            Active[Model]
-            or CreateBody(Model)
+        local v =
+            A[m] or n(m)
 
-        if not Data then
+        if not v then
             return
         end
 
-Data.Highlight.FillColor =
-    Settings.Color
+        v.H.FillColor =
+            S.Color
 
-Data.Highlight.OutlineColor =
-    Settings.Color
+        v.H.OutlineColor =
+            S.Color
 
-Data.Highlight.FillTransparency =
-    Settings.FillTransparency
+        v.H.FillTransparency =
+            S.FillTransparency
 
-Data.Highlight.OutlineTransparency =
-    Settings.OutlineTransparency
+        v.H.OutlineTransparency =
+            S.OutlineTransparency
 
-if
-    not Data.Anchor
-    or not Data.Anchor.Parent
-then
-    Data.Anchor =
-        GetBodyAnchor(Model)
-end
+        if
+            not v.P
+            or not v.P.Parent
+        then
+            v.P = h(m)
+        end
+    end
 
--- FECHA UpdateBody(Model)
-end
-
--- =============================================
--- UPDATE
--- =============================================
-local function Update()
-        if not Settings.Enabled then
+    local function e()
+        if not S.Enabled then
             return
         end
 
-        local Seen = {}
+        local seen = {}
 
-        for _, Model in ipairs(
-            Corpses:GetChildren()
+        for _, m in ipairs(
+            f:GetChildren()
         ) do
-
-            if Model:IsA("Model") then
-                Seen[Model] = true
-
-                UpdateBody(Model)
+            if m:IsA(d({
+                77,111,100,101,108
+            })) then
+                seen[m] = true
+                u(m)
             end
         end
 
-        -- Limpa referências de corpos removidos
-        local RemoveList = {}
+        local list = {}
 
-        for Model in pairs(Active) do
-            if not Seen[Model] then
-                table.insert(
-                    RemoveList,
-                    Model
-                )
+        for m in pairs(A) do
+            if not seen[m] then
+                list[#list + 1] = m
             end
         end
 
-        for _, Model in ipairs(
-            RemoveList
-        ) do
-            RemoveBody(Model)
+        for i = 1, #list do
+            x(list[i])
         end
     end
 
-        -- =============================================
--- RENDER DO TEXTO DEAD BODY
--- =============================================
+    local function y()
+        if not S.Enabled then
+            return
+        end
 
-local function RenderLabels()
-    if not Settings.Enabled then
-        return
+        local cam =
+            workspace.CurrentCamera
+
+        if not cam then
+            return
+        end
+
+        for m, v in pairs(A) do
+            local L = v.T
+
+            if L then
+                L.Visible = false
+
+                if
+                    S.ShowLabel
+                    and m.Parent
+                    and g(m) <= S.Range
+                then
+                    local z = v.P
+
+                    if
+                        not z
+                        or not z.Parent
+                    then
+                        z = h(m)
+                        v.P = z
+                    end
+
+                    if z then
+                        local pos, on =
+                            cam:WorldToViewportPoint(
+                                z.Position
+                                + Vector3.new(
+                                    0,
+                                    1.5,
+                                    0
+                                )
+                            )
+
+                        if
+                            on
+                            and pos.Z > 0
+                        then
+                            L.Position =
+                                Vector2.new(
+                                    pos.X,
+                                    pos.Y
+                                )
+
+                            L.Text =
+                                d({
+                                    68,101,97,100,32,
+                                    98,111,100,121
+                                })
+
+                            L.Size = 14
+                            L.Center = true
+                            L.Outline = true
+
+                            L.Color =
+                                Color3.new(
+                                    1,
+                                    1,
+                                    1
+                                )
+
+                            L.Visible = true
+                        end
+                    end
+                end
+            end
+        end
     end
 
-    local Camera = workspace.CurrentCamera
+    local function k()
+        local list = {}
 
-    if not Camera then
-        return
+        for m in pairs(A) do
+            list[#list + 1] = m
+        end
+
+        for i = 1, #list do
+            x(list[i])
+        end
     end
 
-    for Model, Data in pairs(Active) do
-        local Text = Data.Text
-
-        if not Text then
-            continue
-        end
-
-        -- Texto desligado pelo painel
-        if not Settings.ShowLabel then
-            Text.Visible = false
-            continue
-        end
-
-        -- Corpo já foi removido
-        if not Model.Parent then
-            Text.Visible = false
-            continue
-        end
-
-        -- Fora do alcance
-        local Distance = GetDistance(Model)
-
-        if Distance > Settings.Range then
-            Text.Visible = false
-            continue
-        end
-
-        -- Recupera anchor se necessário
-        local Anchor = Data.Anchor
-
-        if
-            not Anchor
-            or not Anchor.Parent
-        then
-            Anchor = GetBodyAnchor(Model)
-            Data.Anchor = Anchor
-        end
-
-        if not Anchor then
-            Text.Visible = false
-            continue
-        end
-
-        -- Posição um pouco acima da cabeça
-        local WorldPosition =
-            Anchor.Position
-            + Vector3.new(0, 1.5, 0)
-
-        local ScreenPosition, OnScreen =
-            Camera:WorldToViewportPoint(
-                WorldPosition
-            )
-
-        if
-            not OnScreen
-            or ScreenPosition.Z <= 0
-        then
-            Text.Visible = false
-            continue
-        end
-
-        -- =============================================
-        -- MESMO VISUAL DO ESP
-        -- =============================================
-
-        Text.Position =
-            Vector2.new(
-                ScreenPosition.X,
-                ScreenPosition.Y
-            )
-
-        Text.Text = "Dead body"
-
-        Text.Size = 14
-        Text.Center = true
-        Text.Outline = true
-        Text.Color = Color3.new(1, 1, 1)
-
-        Text.Visible = true
-    end
-end
-
-    -- =============================================
-    -- CORPO ADICIONADO
-    -- =============================================
-
-    local CorpseAddedConnection =
-        Corpses.ChildAdded:Connect(
-            function(Model)
-
-                if not Settings.Enabled then
+    local c1 =
+        f.ChildAdded:Connect(
+            function(m)
+                if not S.Enabled then
                     return
                 end
 
-                -- Dá um pequeno tempo para
-                -- as partes do cadáver replicarem.
                 task.defer(function()
-
                     if
-                        Model
-                        and Model.Parent == Corpses
+                        m
+                        and m.Parent == f
                     then
-                        UpdateBody(Model)
+                        u(m)
                     end
                 end)
             end
         )
 
-    -- =============================================
-    -- CORPO REMOVIDO
-    -- =============================================
-
-    local CorpseRemovedConnection =
-        Corpses.ChildRemoved:Connect(
-            function(Model)
-                RemoveBody(Model)
+    local c2 =
+        f.ChildRemoved:Connect(
+            function(m)
+                x(m)
             end
         )
 
--- =============================================
--- TOGGLE
--- =============================================
+    local function Toggle(v)
+        S.Enabled = v == true
 
-local function Toggle(State)
-    Settings.Enabled = State == true
-
-    if Settings.Enabled then
-        if Thread then
-            return
-        end
-
-        Running = true
-
-        -- Processa corpos que já existem
-        Update()
-
-        Thread = task.spawn(function()
-            while Running and Settings.Enabled do
-                Update()
-
-                task.wait(0.20)
+        if S.Enabled then
+            if R then
+                return
             end
 
-            Thread = nil
-        end)
+            R = true
 
-        -- Texto acompanha a câmera
-        if not RenderConnection then
-            RenderConnection =
-                RunService.RenderStepped:Connect(
-                    RenderLabels
-                )
-        end
+            e()
 
-    else
-        Running = false
+            if not X then
+                X =
+                    b.RenderStepped:Connect(
+                        y
+                    )
+            end
 
-        -- Para atualização do texto
-        if RenderConnection then
-            RenderConnection:Disconnect()
-            RenderConnection = nil
-        end
+            T =
+                task.spawn(function()
+                    while
+                        R
+                        and S.Enabled
+                    do
+                        e()
+                        task.wait(0.20)
+                    end
 
-        -- Remove todos os chams/textos
-        local List = {}
+                    T = nil
+                end)
+        else
+            R = false
 
-        for Model in pairs(Active) do
-            table.insert(
-                List,
-                Model
-            )
-        end
+            if X then
+                X:Disconnect()
+                X = nil
+            end
 
-        for _, Model in ipairs(List) do
-            RemoveBody(Model)
+            k()
         end
     end
+
+    local function Destroy()
+        R = false
+        S.Enabled = false
+
+        if X then
+            X:Disconnect()
+            X = nil
+        end
+
+        if c1 then
+            c1:Disconnect()
+            c1 = nil
+        end
+
+        if c2 then
+            c2:Disconnect()
+            c2 = nil
+        end
+
+        k()
+
+        T = nil
+    end
+
+    return {
+        Toggle = Toggle,
+        Destroy = Destroy
+    }
 end
 
--- =============================================
--- DESTROY
--- =============================================
-
-local function Destroy()
-    Running = false
-    Settings.Enabled = false
-
-    -- =============================================
-    -- RENDER CONNECTION
-    -- =============================================
-
-    if RenderConnection then
-        RenderConnection:Disconnect()
-        RenderConnection = nil
-    end
-
-    -- =============================================
-    -- LIMPAR CORPOS
-    -- =============================================
-
-    local List = {}
-
-    for Model in pairs(Active) do
-        table.insert(
-            List,
-            Model
-        )
-    end
-
-    for _, Model in ipairs(List) do
-        RemoveBody(Model)
-    end
-
-    -- =============================================
-    -- DESCONECTAR EVENTOS
-    -- =============================================
-
-    if CorpseAddedConnection then
-        CorpseAddedConnection:Disconnect()
-        CorpseAddedConnection = nil
-    end
-
-    if CorpseRemovedConnection then
-        CorpseRemovedConnection:Disconnect()
-        CorpseRemovedConnection = nil
-    end
-
-    Thread = nil
-end
-
--- =============================================
--- EXPORT
--- =============================================
-
-return {
-    Toggle = Toggle,
-    Destroy = Destroy
-}
-
-end
-
-return DeadBodyChams
+return M
