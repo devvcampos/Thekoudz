@@ -432,8 +432,7 @@ if Settings.Enabled then
         RenderConnection =
             RunService.RenderStepped:Connect(
                 RenderLabels
-            )
-    end
+        end)
 
         else
 
