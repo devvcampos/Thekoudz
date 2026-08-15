@@ -16,11 +16,11 @@ local Config = {
         VisibilityCheck = true,
 
         -- Cor quando o alvo estiver visível
-        VisibleBoxColor = Color3.fromRGB(0, 255, 0)
-    },
+        VisibleBoxColor = Color3.fromRGB(0, 255, 0),
 
-        VisibilityInterval = 0.10,    
-    }
+        -- Intervalo do cache de raycast
+        VisibilityInterval = 0.10,
+    },
 
     DeadBodyChams = {
         Enabled = false,
