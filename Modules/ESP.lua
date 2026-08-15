@@ -64,20 +64,67 @@ VisibilityParams.IgnoreWater =
 
 local LastLocalCharacter = nil
 
-local VISIBILITY_INTERVAL =
-    ESPConfig.VisibilityInterval
-    or 0.10
+-- =============================================
+-- INTERVALO DE VISIBILIDADE COM JITTER
+-- =============================================
+
+local function GetVisibilityInterval(plr)
+    local Base =
+        tonumber(
+            ESPConfig.VisibilityInterval
+        )
+        or 0.10
+
+    local Jitter =
+        tonumber(
+            ESPConfig.VisibilityJitter
+        )
+        or 0.025
+
+    Jitter =
+        math.max(
+            Jitter,
+            0
+        )
+
+    local UserId =
+        tonumber(plr.UserId)
+        or 0
+
+    -- Fase estável por jogador
+    local Phase =
+        (math.abs(UserId) % 997)
+        / 996
+
+    -- Converte 0..1 para -1..1
+    local Offset =
+        (
+            Phase * 2
+            - 1
+        )
+        * Jitter
+
+    return math.max(
+        0.03,
+        Base + Offset
+    )
+end
 
     -- =============================================
     -- LIMPEZA DE UM PLAYER
     -- =============================================
 
-    local function RemoveESP(plr)
-        local data = ESP_Drawings[plr]
+local function RemoveESP(plr)
+    local data =
+        ESP_Drawings[plr]
 
-        if not data then
-            return
-        end
+    -- Cache deve sempre ser limpo,
+    -- mesmo se não houver Drawing.
+    VisibilityCache[plr] = nil
+
+    if not data then
+        return
+    end
 
         if UseDrawing and UseSquare then
             if data.Box then
@@ -432,10 +479,15 @@ local Height =
         - TopPos.Y
     )
 
-            local Height = math.abs(BotPos.Y - TopPos.Y)
-            local Width = Height * 0.6
-            local X = CenterPos.X - (Width / 2)
-            local Y = TopPos.Y
+local Width =
+    Height * 0.6
+
+local X =
+    CenterPos.X
+    - (Width / 2)
+
+local Y =
+    TopPos.Y
 
             -- =============================================
             -- CRIA OS DESENHOS
