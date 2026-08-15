@@ -395,31 +395,25 @@ end
             end
         )
 
-    -- =============================================
-    -- TOGGLE
-    -- =============================================
+-- =============================================
+-- TOGGLE
+-- =============================================
 
-    local function Toggle(State)
-        Settings.Enabled =
-            State == true
+local function Toggle(State)
+    Settings.Enabled = State == true
 
-if Settings.Enabled then
+    if Settings.Enabled then
+        if Thread then
+            return
+        end
 
-    if Thread then
-        return
-    end
+        Running = true
 
-    Running = true
+        -- Processa corpos que já existem
+        Update()
 
-    Update()
-
-    Thread =
-        task.spawn(function()
-
-            while
-                Running
-                and Settings.Enabled
-            do
+        Thread = task.spawn(function()
+            while Running and Settings.Enabled do
                 Update()
 
                 task.wait(0.20)
@@ -428,35 +422,102 @@ if Settings.Enabled then
             Thread = nil
         end)
 
-    if not RenderConnection then
-        RenderConnection =
-            RunService.RenderStepped:Connect(
-                RenderLabels
-        end)
-
-        else
-
-            Running = false
-
-                if RenderConnection then
-    RenderConnection:Disconnect()
-    RenderConnection = nil
-end
-
-            local List = {}
-
-            for Model in pairs(Active) do
-                table.insert(
-                    List,
-                    Model
+        -- Texto acompanha a câmera
+        if not RenderConnection then
+            RenderConnection =
+                RunService.RenderStepped:Connect(
+                    RenderLabels
                 )
-            end
+        end
 
-            for _, Model in ipairs(List) do
-                RemoveBody(Model)
-            end
+    else
+        Running = false
+
+        -- Para atualização do texto
+        if RenderConnection then
+            RenderConnection:Disconnect()
+            RenderConnection = nil
+        end
+
+        -- Remove todos os chams/textos
+        local List = {}
+
+        for Model in pairs(Active) do
+            table.insert(
+                List,
+                Model
+            )
+        end
+
+        for _, Model in ipairs(List) do
+            RemoveBody(Model)
         end
     end
+end
+
+-- =============================================
+-- DESTROY
+-- =============================================
+
+local function Destroy()
+    Running = false
+    Settings.Enabled = false
+
+    -- =============================================
+    -- RENDER CONNECTION
+    -- =============================================
+
+    if RenderConnection then
+        RenderConnection:Disconnect()
+        RenderConnection = nil
+    end
+
+    -- =============================================
+    -- LIMPAR CORPOS
+    -- =============================================
+
+    local List = {}
+
+    for Model in pairs(Active) do
+        table.insert(
+            List,
+            Model
+        )
+    end
+
+    for _, Model in ipairs(List) do
+        RemoveBody(Model)
+    end
+
+    -- =============================================
+    -- DESCONECTAR EVENTOS
+    -- =============================================
+
+    if CorpseAddedConnection then
+        CorpseAddedConnection:Disconnect()
+        CorpseAddedConnection = nil
+    end
+
+    if CorpseRemovedConnection then
+        CorpseRemovedConnection:Disconnect()
+        CorpseRemovedConnection = nil
+    end
+
+    Thread = nil
+end
+
+-- =============================================
+-- EXPORT
+-- =============================================
+
+return {
+    Toggle = Toggle,
+    Destroy = Destroy
+}
+
+end
+
+return DeadBodyChams
 
     -- =============================================
     -- DESTROY
