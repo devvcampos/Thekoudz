@@ -2,15 +2,23 @@ local DeadBodyChams = {}
 
 function DeadBodyChams.Init(Config)
     local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
 
     local LocalPlayer = Players.LocalPlayer
     local Corpses = workspace:WaitForChild("Corpses")
 
     local Settings = Config.DeadBodyChams
 
-    local Active = {}
-    local Running = false
-    local Thread = nil
+   local Active = {}
+   local Running = false
+   local Thread = nil
+   local RenderConnection = nil
+
+   local UseDrawingText = pcall(function()
+   local test = Drawing.new("Text")
+   test.Visible = false
+   test:Remove()
+   end)
 
     -- =============================================
     -- ROOT DO CORPO
@@ -26,6 +34,18 @@ function DeadBodyChams.Init(Config)
             or Model:FindFirstChild("Torso")
             or Model:FindFirstChild("Head")
             or Model.PrimaryPart
+    end
+
+    local function GetBodyAnchor(Model)
+       if not Model then
+           return nil
+       end
+
+    return Model:FindFirstChild("Head")
+        or Model:FindFirstChild("UpperTorso")
+        or Model:FindFirstChild("Torso")
+        or Model:FindFirstChild("HumanoidRootPart")
+        or Model.PrimaryPart
     end
 
     -- =============================================
@@ -63,12 +83,16 @@ function DeadBodyChams.Init(Config)
         end
 
         if Data.Highlight then
-            Data.Highlight:Destroy()
+           pcall(function()
+                Data.Highlight:Destroy()
+            end)
         end
 
-        if Data.Label then
-            Data.Label:Destroy()
-        end
+        if Data.Text then
+            pcall(function()
+               Data.Text:Remove()
+             end)
+       end
 
         Active[Model] = nil
     end
@@ -119,76 +143,32 @@ function DeadBodyChams.Init(Config)
 
         Highlight.Parent = Model
 
-        -- =============================================
-        -- DEAD BODY LABEL
-        -- =============================================
+-- =============================================
+-- DEAD BODY TEXT
+-- MESMO ESTILO DO ESP PRINCIPAL
+-- =============================================
 
-        local Billboard =
-            Instance.new("BillboardGui")
+local Text = nil
 
-        Billboard.Name =
-            "__DeadBodyLabel"
+if UseDrawingText then
+    Text = Drawing.new("Text")
 
-        Billboard.Adornee =
-            Root
+    Text.Size = 14
+    Text.Center = true
+    Text.Outline = true
 
-        Billboard.Size =
-            UDim2.fromOffset(
-                150,
-                28
-            )
+    -- Igual ao nome do ESP principal
+    Text.Color = Color3.new(1, 1, 1)
 
-        Billboard.StudsOffset =
-            Vector3.new(
-                0,
-                3.5,
-                0
-            )
+    Text.Text = "Dead body"
+    Text.Visible = false
+end
 
-        Billboard.AlwaysOnTop =
-            true
-
-        Billboard.Enabled =
-            Settings.ShowLabel
-
-        Billboard.Parent =
-            Model
-
-        local Text =
-            Instance.new("TextLabel")
-
-        Text.Size =
-            UDim2.fromScale(
-                1,
-                1
-            )
-
-        Text.BackgroundTransparency =
-            1
-
-        Text.Text =
-            "Dead body"
-
-        Text.TextColor3 =
-            Settings.Color
-
-        Text.TextStrokeTransparency =
-            0.25
-
-        Text.Font =
-            Enum.Font.GothamBold
-
-        Text.TextScaled =
-            true
-
-        Text.Parent =
-            Billboard
-
-        Active[Model] = {
-            Highlight = Highlight,
-            Label = Billboard,
-            Text = Text
-        }
+Active[Model] = {
+    Highlight = Highlight,
+    Text = Text,
+    Anchor = GetBodyAnchor(Model)
+}
 
         return Active[Model]
     end
@@ -220,30 +200,25 @@ function DeadBodyChams.Init(Config)
             return
         end
 
-        -- Atualização dinâmica
-        Data.Highlight.FillColor =
-            Settings.Color
+Data.Highlight.FillColor =
+    Settings.Color
 
-        Data.Highlight.OutlineColor =
-            Settings.Color
+Data.Highlight.OutlineColor =
+    Settings.Color
 
-        Data.Highlight.FillTransparency =
-            Settings.FillTransparency
+Data.Highlight.FillTransparency =
+    Settings.FillTransparency
 
-        Data.Highlight.OutlineTransparency =
-            Settings.OutlineTransparency
+Data.Highlight.OutlineTransparency =
+    Settings.OutlineTransparency
 
-        Data.Label.Enabled =
-            Settings.ShowLabel
-
-        if Data.Text then
-            Data.Text.TextColor3 =
-                Settings.Color
-
-            Data.Text.Text =
-                "Dead body"
-        end
-    end
+if
+    not Data.Anchor
+    or not Data.Anchor.Parent
+then
+    Data.Anchor =
+        GetBodyAnchor(Model)
+end
 
     -- =============================================
     -- UPDATE
@@ -285,6 +260,103 @@ function DeadBodyChams.Init(Config)
             RemoveBody(Model)
         end
     end
+
+        -- =============================================
+-- RENDER DO TEXTO DEAD BODY
+-- =============================================
+
+local function RenderLabels()
+    if not Settings.Enabled then
+        return
+    end
+
+    local Camera = workspace.CurrentCamera
+
+    if not Camera then
+        return
+    end
+
+    for Model, Data in pairs(Active) do
+        local Text = Data.Text
+
+        if not Text then
+            continue
+        end
+
+        -- Texto desligado pelo painel
+        if not Settings.ShowLabel then
+            Text.Visible = false
+            continue
+        end
+
+        -- Corpo já foi removido
+        if not Model.Parent then
+            Text.Visible = false
+            continue
+        end
+
+        -- Fora do alcance
+        local Distance = GetDistance(Model)
+
+        if Distance > Settings.Range then
+            Text.Visible = false
+            continue
+        end
+
+        -- Recupera anchor se necessário
+        local Anchor = Data.Anchor
+
+        if
+            not Anchor
+            or not Anchor.Parent
+        then
+            Anchor = GetBodyAnchor(Model)
+            Data.Anchor = Anchor
+        end
+
+        if not Anchor then
+            Text.Visible = false
+            continue
+        end
+
+        -- Posição um pouco acima da cabeça
+        local WorldPosition =
+            Anchor.Position
+            + Vector3.new(0, 1.5, 0)
+
+        local ScreenPosition, OnScreen =
+            Camera:WorldToViewportPoint(
+                WorldPosition
+            )
+
+        if
+            not OnScreen
+            or ScreenPosition.Z <= 0
+        then
+            Text.Visible = false
+            continue
+        end
+
+        -- =============================================
+        -- MESMO VISUAL DO ESP
+        -- =============================================
+
+        Text.Position =
+            Vector2.new(
+                ScreenPosition.X,
+                ScreenPosition.Y
+            )
+
+        Text.Text = "Dead body"
+
+        Text.Size = 14
+        Text.Center = true
+        Text.Outline = true
+        Text.Color = Color3.new(1, 1, 1)
+
+        Text.Visible = true
+    end
+end
 
     -- =============================================
     -- CORPO ADICIONADO
@@ -331,37 +403,46 @@ function DeadBodyChams.Init(Config)
         Settings.Enabled =
             State == true
 
-        if Settings.Enabled then
+if Settings.Enabled then
 
-            if Thread then
-                return
+    if Thread then
+        return
+    end
+
+    Running = true
+
+    Update()
+
+    Thread =
+        task.spawn(function()
+
+            while
+                Running
+                and Settings.Enabled
+            do
+                Update()
+
+                task.wait(0.20)
             end
 
-            Running = true
+            Thread = nil
+        end)
 
-            -- Processa corpos que já existem
-            Update()
-
-            Thread =
-                task.spawn(function()
-
-                    while
-                        Running
-                        and Settings.Enabled
-                    do
-                        Update()
-
-                        -- Só precisamos atualizar
-                        -- range/cor algumas vezes por segundo.
-                        task.wait(0.20)
-                    end
-
-                    Thread = nil
-                end)
+    if not RenderConnection then
+        RenderConnection =
+            RunService.RenderStepped:Connect(
+                RenderLabels
+            )
+    end
 
         else
 
             Running = false
+
+                if RenderConnection then
+    RenderConnection:Disconnect()
+    RenderConnection = nil
+end
 
             local List = {}
 
@@ -385,6 +466,10 @@ function DeadBodyChams.Init(Config)
     local function Destroy()
         Running = false
         Settings.Enabled = false
+    if RenderConnection then
+    RenderConnection:Disconnect()
+    RenderConnection = nil
+end
 
         local List = {}
 
