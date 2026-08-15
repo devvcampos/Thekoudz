@@ -58,14 +58,19 @@ function UI.Create(Context)
         Default = true,
         Callback = function(v) Config.ESP.DrawDistance = v end,
     })
-    ESPGroup:AddSlider("MaxDistance", {
-        Text = "Alcance Máximo (M)",
-        Default = _G.MaxESP_Dist = v
-        Min = 0,
-        Max = 100000,
-        Rounding = 0,
-        Callback = function(v) Config.MaxESP_Dist = v end,
-    })
+ESPGroup:AddSlider("MaxDistance", {
+    Text = "Alcance Máximo (M)",
+
+    Default = _G.MaxESP_Dist or Config.MaxESP_Dist or 150,
+
+    Min = 0,
+    Max = 100000,
+    Rounding = 0,
+
+    Callback = function(v)
+        _G.MaxESP_Dist = v
+    end,
+})
      ESPGroup:AddDivider()
      ESPGroup:AddToggle("ToggleDeadBodyChams",{
         Text = "Mostrar Corpos Mortos",
