@@ -47,9 +47,6 @@ print("Config.ESP:", Config.ESP)
 -- Inicializar ESP
 ---------------------------------------------------------
 
-local ESP = ESPModule.Init(Config)
-local DeadBody = DeadBodyModule.Init(Config)
-
 local ESP =
     ESPModule.Init(Config)
 
