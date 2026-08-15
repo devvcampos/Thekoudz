@@ -18,8 +18,12 @@ local Config = {
         -- Cor quando o alvo estiver visível
         VisibleBoxColor = Color3.fromRGB(0, 255, 0),
 
-        -- Intervalo do cache de raycast
+        -- Intervalo base do cache de raycast
         VisibilityInterval = 0.10,
+
+        -- Variação aplicada ao intervalo
+        -- Ex.: 0.10 ± 0.025
+        VisibilityJitter = 0.025,
     },
 
     DeadBodyChams = {
