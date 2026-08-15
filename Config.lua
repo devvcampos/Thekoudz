@@ -19,6 +19,9 @@ local Config = {
         VisibleBoxColor = Color3.fromRGB(0, 255, 0)
     },
 
+        VisibilityInterval = 0.10,    
+    }
+
     DeadBodyChams = {
         Enabled = false,
 
