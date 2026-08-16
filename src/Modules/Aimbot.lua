@@ -1,7 +1,6 @@
 local Aimbot = {}
 
 function Aimbot.Init(Config)
-    -- Carrega serviços com cloneref para segurança
     local cloneref = (cloneref or clonereference or function(i) return i end)
     local Players = cloneref(game:GetService("Players"))
     local RunService = cloneref(game:GetService("RunService"))
@@ -10,24 +9,25 @@ function Aimbot.Init(Config)
     local Camera = Workspace.CurrentCamera
     local LocalPlayer = Players.LocalPlayer
 
-    -- Tenta achar o RemoteEvent (ajuste o nome conforme o jogo, ex: "Fire", "Shoot", "Remote")
-    -- Se o jogo usar um nome específico, altere "Fire" aqui.
     local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+    -- Troque o nome "Fire" pelo que o jogo usar (Shoot, Remote, etc)
     local RemoteEvent = ReplicatedStorage:FindFirstChild("Fire") or ReplicatedStorage:FindFirstChild("Shoot") or ReplicatedStorage:FindFirstChild("Remote")
     
-    -- Variáveis de estado
     local AimbotConfig = Config.Aimbot
     local AimThread = nil
     local LastFireTime = 0
+    
+    -- TRAVA DE SEGURANÇA: Evita chamar o movimento enquanto ele já está rodando
+    local isAiming = false
 
-    -- 1. Cálculo matemático do ângulo
+    -- 1. Cálculo matemático do ângulo (FOV)
     local function angleToTarget(cameraPos, cameraDir, targetPos)
         local toTarget = (targetPos - cameraPos).Unit
         local dot = math.clamp(cameraDir:Dot(toTarget), -1, 1)
         return math.deg(math.acos(dot))
     end
 
-    -- 2. Função para pegar o inimigo mais próximo dentro do FOV
+    -- 2. Função para pegar o inimigo mais próximo dentro do FOV e Distância
     local function GetClosestPlayerInFOV()
         local closest = nil
         local closestAngle = math.huge
@@ -40,7 +40,10 @@ function Aimbot.Init(Config)
                 local head = player.Character:FindFirstChild("Head")
                 if head then
                     local angle = angleToTarget(camPos, camDir, head.Position)
-                    if angle < AimbotConfig.FOV and angle < closestAngle then
+                    local distance = (camPos - head.Position).Magnitude
+                    
+                    -- Verifica FOV e Distância Máxima
+                    if angle < AimbotConfig.FOV and angle < closestAngle and distance < AimbotConfig.MaxDistance then
                         closest = player
                         closestAngle = angle
                     end
@@ -50,56 +53,70 @@ function Aimbot.Init(Config)
         return closest
     end
 
-    -- 3. A Curva de Aceleração (Smoothstep) + Jitter + MouseMoveRel
+    -- 3. Curva de Movimento Humanizada (Mousemoverel) + Trava de Conflito
     local function moveMouseHumanized(targetX, targetY)
-        -- Obtém a posição atual do mouse
+        -- Evita conflitos
+        if isAiming then return end
+        isAiming = true
+
         local startX, startY = UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y
         
-        -- Adiciona ruído (erro humano) no alvo final
+        -- Calcula a distância em pixels na tela
+        local dx = targetX - startX
+        local dy = targetY - startY
+        local distance = math.sqrt(dx * dx + dy * dy)
+
+        -- Se o mouse já está muito próximo (< 3px), não faz nada e libera
+        if distance < 3 then
+            isAiming = false
+            return
+        end
+        
+        -- Adiciona ruído humano no ponto final (erro de ~1.2px)
         local accuracyNoise = 1.2
         local finalX = targetX + (math.random() * 2 - 1) * accuracyNoise
         local finalY = targetY + (math.random() * 2 - 1) * accuracyNoise
         
-        -- Calcula a distância
-        local dx = finalX - startX
-        local dy = finalY - startY
-        local distance = math.sqrt(dx * dx + dy * dy)
+        dx = finalX - startX
+        dy = finalY - startY
+        distance = math.sqrt(dx * dx + dy * dy)
         
-        -- Define o número de passos baseado na distância e na suavidade configurada
+        -- Define o número de passos baseado na distância e suavidade
         local steps = math.floor(AimbotConfig.Smoothness + distance * 0.05)
         steps = math.max(AimbotConfig.Smoothness, math.min(steps, 80))
         
         for i = 1, steps do
             local t = i / steps
-            local progress = t * t * (3 - 2 * t) -- Smoothstep
+            local progress = t * t * (3 - 2 * t) -- Função smoothstep (acelera/desacelera)
             
             local x = startX + dx * progress
             local y = startY + dy * progress
             
-            -- Adiciona "tremedeira" no meio do caminho (Simula pulso humano)
+            -- Adiciona "tremedeira" no meio do caminho (jitter)
             local jitterStrength = math.sin(math.pi * t) * 0.6
             x = x + (math.random() * 2 - 1) * jitterStrength
             y = y + (math.random() * 2 - 1) * jitterStrength
             
-            -- Executa o movimento RELATIVO no executor
+            -- Executa o movimento do mouse via Madium
             local relX = x - startX
             local relY = y - startY
-            
-            -- Se for Madium, geralmente é mousemoverel ou mousemoveabs
             if mousemoverel then
                 mousemoverel(relX, relY)
-            elseif mousemoveabs then
+            elseif mousemoveabs then -- fallback
                 mousemoveabs(x, y)
             end
             
             startX, startY = x, y
             
-            -- Delay variável (humano) entre cada micro-movimento
+            -- Delay variável (humanizado) entre cada passo
             task.wait(0.008 + math.random() * 0.006)
         end
+        
+        -- Libera a trava
+        isAiming = false
     end
 
-    -- 4. Lógica do Disparo via RemoteEvent (Fire)
+    -- 4. Lógica do Disparo via RemoteEvent (Com ruído 3D para o servidor)
     local function TryFireRemote(TargetPlayer)
         if not AimbotConfig.AutoFire then return end
         if not RemoteEvent then return end
@@ -107,27 +124,23 @@ function Aimbot.Init(Config)
         local currentTime = tick()
         if currentTime - LastFireTime < AimbotConfig.FireDelay + (math.random() * 0.05) then return end
         
-        -- !!! SEGURANÇA EXTREMA !!!
-        -- O servidor valida a posição do tiro. Envie UMA POSIÇÃO IMPERFEITA (erro de 0.2 a 0.8 studs).
         if TargetPlayer and TargetPlayer.Character then
             local head = TargetPlayer.Character:FindFirstChild("Head")
             if head then
-                -- Adiciona um ruído 3D na posição enviada ao servidor
+                -- Ruído 3D para o servidor não ver um tiro perfeito (entre 0.2 e 0.8 studs de erro)
                 local noiseVec = Vector3.new(
                     math.random() * 2 - 1,
                     math.random() * 2 - 1,
                     math.random() * 2 - 1
-                ) * 0.6 -- Margem de erro pra não parecer perfeito
+                ) * 0.5
                 
-                -- Chama o RemoteEvent com o alvo alterado
                 RemoteEvent:FireServer(head.Position + noiseVec)
-                
                 LastFireTime = currentTime
             end
         end
     end
 
-    -- 5. Loop Principal do Aimbot
+    -- 5. Loop Principal do Aimbot (Mira -> Move -> Atira)
     local function RunAimbotLoop()
         while AimbotConfig.Enabled do
             local target = GetClosestPlayerInFOV()
@@ -135,19 +148,22 @@ function Aimbot.Init(Config)
             if target then
                 local head = target.Character and target.Character:FindFirstChild("Head")
                 if head then
-                    local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                    -- Converte posição 3D para 2D (tela)
+                    local screenPos, onScreen, depth = Camera:WorldToViewportPoint(head.Position)
                     
-                    if onScreen then
-                        -- Move o mouse com curva humanizada para a tela
+                    -- Só mira se estiver na frente da tela (depth > 0)
+                    if onScreen and depth > 0 then
+                        -- 1º PASSO: Realiza o movimento do mouse
                         moveMouseHumanized(screenPos.X, screenPos.Y)
                         
-                        -- Tenta atirar via RemoteEvent
+                        -- 2º PASSO: Só dispara DEPOIS que o movimento terminou (ponto crítico de segurança)
                         TryFireRemote(target)
                     end
                 end
             end
             
-            task.wait(0.016) -- Roda a cada frame aproximadamente (60 FPS)
+            -- Pequena pausa para não sobrecarregar a CPU e simular o "tempo de reação"
+            task.wait(0.03)
         end
     end
 
@@ -157,11 +173,17 @@ function Aimbot.Init(Config)
         if State and not AimThread then
             AimThread = task.spawn(RunAimbotLoop)
         elseif not State and AimThread then
+            isAiming = false -- Garante que a trava seja liberada se desligar no meio do movimento
             AimThread = nil
         end
     end
 
-    return { Toggle = ToggleAimbot }
+    -- Se quiser uma função Destroy para limpar a thread
+    local function DestroyAimbot()
+        ToggleAimbot(false)
+    end
+
+    return { Toggle = ToggleAimbot, Destroy = DestroyAimbot }
 end
 
 return Aimbot
