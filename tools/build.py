@@ -149,10 +149,9 @@ def generate_bundle(
     for name in MODULES:
         encoded_name = json.dumps(name)
 
-        source =
-            lua_long_string(
-                sources[name]
-            )
+source = lua_long_string(
+    sources[name]
+)
 
         parts.append(
             "    ["
@@ -331,16 +330,13 @@ def watch() -> None:
 
     while True:
         try:
-            current =
-                source_signature()
+            current = source_signature()
 
             if current != previous:
                 try:
                     build()
 
-                    previous =
-                        current
-
+                    previous = current
                 except Exception as exc:
                     print(
                         "[ERRO]",
