@@ -5,71 +5,149 @@ return function(LoadModule)
     )
 
     ---------------------------------------------------------
-    -- 1. CARREGAR DEPENDÊNCIAS (Tudo com LoadModule)
+    -- 1. CARREGAR DEPENDÊNCIAS
     ---------------------------------------------------------
-    local Config = LoadModule("Config.lua")
-    local Library = LoadModule("Library.lua")
-    local ThemeManager = LoadModule("addons/ThemeManager.lua")
-    local SaveManager = LoadModule("addons/SaveManager.lua")
+
+    local Config =
+        LoadModule("Config.lua")
+
+    local Library =
+        LoadModule("Library.lua")
+
+    local ThemeManager =
+        LoadModule("addons/ThemeManager.lua")
+
+    local SaveManager =
+        LoadModule("addons/SaveManager.lua")
+
 
     ---------------------------------------------------------
     -- 2. CARREGAR MÓDULOS
     ---------------------------------------------------------
-    local ESPModule = LoadModule("Modules/ESP.lua")
-    local DeadBodyModule = LoadModule("Modules/DeadBodyChams.lua")
-    local AimbotModule = LoadModule("Modules/Aimbot.lua") -- NOVO: Carregando o seu aimbot
-    local AimbotModule = LoadModule("Modules/AimProvider.lua")
-    local UI = LoadModule("Ui.lua")
+
+    local ESPModule =
+        LoadModule("Modules/ESP.lua")
+
+    local DeadBodyModule =
+        LoadModule("Modules/DeadBodyChams.lua")
+
+    local AimbotModule =
+        LoadModule("Modules/Aimbot.lua")
+
+    local AimProviderModule =
+        LoadModule("Modules/AimProvider.lua")
+
+    local UI =
+        LoadModule("Ui.lua")
+
 
     ---------------------------------------------------------
     -- 3. INICIALIZAÇÃO
     ---------------------------------------------------------
-    local ESP = ESPModule.Init(Config)
-    local DeadBody = DeadBodyModule.Init(Config)
-    local AimProvider =AimProviderModule.Init(Config)
-    local Aimbot = AimbotModule.Init(Config) -- NOVO: Inicializando o aimbot
+
+    local ESP =
+        ESPModule.Init(Config)
+
+    local DeadBody =
+        DeadBodyModule.Init(Config)
+
+    local AimProvider =
+        AimProviderModule.Init(Config)
+
+    local Aimbot =
+        AimbotModule.Init(
+            Config,
+            AimProvider
+        )
+
 
     ---------------------------------------------------------
-    -- 4. MONTAR O CONTEXT
+    -- 4. CONTEXT
     ---------------------------------------------------------
+
     local Context = {
         Library = Library,
         Config = Config,
 
-        ToggleESP = ESP.Toggle,
-        DestroyESP = ESP.Destroy,
+        -- ESP
+        ToggleESP =
+            ESP.Toggle,
 
-        ToggleDeadBodyChams = DeadBody.Toggle,
-        DestroyDeadBodyChams = DeadBody.Destroy,
+        DestroyESP =
+            ESP.Destroy,
 
-        ToggleAimbot = Aimbot.Toggle,          -- NOVO: Expondo o toggle do aimbot
-        DestroyAimbot = Aimbot.Destroy,        -- (Opcional, se você tiver uma função de destroy no Aimbot)
+        -- DEAD BODY
+        ToggleDeadBodyChams =
+            DeadBody.Toggle,
+
+        DestroyDeadBodyChams =
+            DeadBody.Destroy,
+
+        -- AIMBOT
+        ToggleAimbot =
+            Aimbot.Toggle,
+
+        DestroyAimbot =
+            Aimbot.Destroy,
     }
 
-    ---------------------------------------------------------
-    -- 5. CRIAÇÃO DA UI
-    ---------------------------------------------------------
-    local Window, Tabs = UI.Create(Context)
 
     ---------------------------------------------------------
-    -- 6. INICIAR ADDONS (ThemeManager e SaveManager)
+    -- 5. UI
     ---------------------------------------------------------
-    ThemeManager:SetLibrary(Library)
-    SaveManager:SetLibrary(Library)
-    SaveManager:IgnoreThemeSettings()
-    ThemeManager:ApplyToTab(Tabs.UI)
-    SaveManager:BuildConfigSection(Tabs.UI)
-    SaveManager:LoadAutoloadConfig()
+
+    local Window,
+        Tabs =
+        UI.Create(Context)
+
 
     ---------------------------------------------------------
-    -- 7. RESULTADO FINAL
+    -- 6. ADDONS
     ---------------------------------------------------------
+
+    ThemeManager:SetLibrary(
+        Library
+    )
+
+    SaveManager:SetLibrary(
+        Library
+    )
+
+    SaveManager:
+        IgnoreThemeSettings()
+
+    ThemeManager:
+        ApplyToTab(
+            Tabs.UI
+        )
+
+    SaveManager:
+        BuildConfigSection(
+            Tabs.UI
+        )
+
+    SaveManager:
+        LoadAutoloadConfig()
+
+
+    ---------------------------------------------------------
+    -- 7. RESULTADO
+    ---------------------------------------------------------
+
     return {
         Window = Window,
         Tabs = Tabs,
+
         Config = Config,
+
         ESP = ESP,
+
         DeadBody = DeadBody,
-        Aimbot = Aimbot, -- NOVO: Retornando o aimbot para o seu sistema de build
+
+        AimProvider =
+            AimProvider,
+
+        Aimbot =
+            Aimbot,
     }
 end
