@@ -1,6 +1,23 @@
 local Aimbot = {}
 
 function Aimbot.Init(Config)
+    local Camera =
+    workspace.CurrentCamera
+
+local Origin =
+    Camera.CFrame.Position
+
+local NormalDirection =
+    Camera.CFrame.LookVector
+
+
+local Direction,
+    Player,
+    Part =
+    AimProvider.ResolveDirection(
+        Origin,
+        NormalDirection
+    )
     local cloneref = (cloneref or clonereference or function(i) return i end)
     local Players = cloneref(game:GetService("Players"))
     local RunService = cloneref(game:GetService("RunService"))
@@ -11,7 +28,11 @@ function Aimbot.Init(Config)
 
     local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
     -- Troque o nome "Fire" pelo que o jogo usar (Shoot, Remote, etc)
-    local RemoteEvent = ReplicatedStorage:FindFirstChild("Fire") or ReplicatedStorage:FindFirstChild("Shoot") or ReplicatedStorage:FindFirstChild("Remote")
+    local FireRemote =
+    game:GetService("ReplicatedStorage")
+        :WaitForChild("CLIENT_REMOTES")
+        :WaitForChild("GUN_REMOTES")
+        :WaitForChild("Fire")
     
     local AimbotConfig = Config.Aimbot
     local AimThread = nil

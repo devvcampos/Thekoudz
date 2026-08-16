@@ -24,6 +24,7 @@ MODULES = [
     "Library.lua",
     "Modules/ESP.lua",
     "Modules/Aimbot.lua",
+    "Modules/AimProvider.lua",
     "Modules/DeadBodyChams.lua",
     "addons/ThemeManager.lua",
     "addons/SaveManager.lua",
