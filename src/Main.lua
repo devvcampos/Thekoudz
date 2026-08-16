@@ -25,40 +25,36 @@ return function(LoadModule)
     -- 2. CARREGAR MÓDULOS
     ---------------------------------------------------------
 
-    local ESPModule =
-        LoadModule("Modules/ESP.lua")
+ local ESPModule =
+    LoadModule("Modules/ESP.lua")
 
-    local DeadBodyModule =
-        LoadModule("Modules/DeadBodyChams.lua")
+local DeadBodyModule =
+    LoadModule("Modules/DeadBodyChams.lua")
 
-    local AimbotModule =
-        LoadModule("Modules/Aimbot.lua")
+local AimbotModule =
+    LoadModule("Modules/Aimbot.lua")
 
-    local AimProviderModule =
-        LoadModule("Modules/AimProvider.lua")
+local AimProviderModule =
+    LoadModule("Modules/AimProvider.lua")
 
-    local UI =
-        LoadModule("Ui.lua")
+local UI =
+    LoadModule("Ui.lua")
 
 
-    ---------------------------------------------------------
-    -- 3. INICIALIZAÇÃO
-    ---------------------------------------------------------
+local ESP =
+    ESPModule.Init(Config)
 
-    local ESP =
-        ESPModule.Init(Config)
+local DeadBody =
+    DeadBodyModule.Init(Config)
 
-    local DeadBody =
-        DeadBodyModule.Init(Config)
+local AimProvider =
+    AimProviderModule.Init(Config)
 
-    local AimProvider =
-        AimProviderModule.Init(Config)
-
-    local Aimbot =
-        AimbotModule.Init(
-            Config,
-            AimProvider
-        )
+local Aimbot =
+    AimbotModule.Init(
+        Config,
+        AimProvider
+    )
 
 
     ---------------------------------------------------------
