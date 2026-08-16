@@ -212,6 +212,91 @@ function UI.Create(Context)
         }
     )
 
+        -- =============================================
+    -- AIMBOT
+    -- =============================================
+
+    local AimbotGroup =
+        Tabs.Main:AddLeftGroupbox(
+            "Aimbot",
+            "crosshair"
+        )
+
+
+    AimbotGroup:AddToggle(
+        "ToggleAimbot_Pro",
+        {
+            Text =
+                "Ativar Aimbot (Mouse)",
+
+            Default =
+                false,
+
+            Callback =
+                Context.ToggleAimbot,
+        }
+    )
+
+
+    AimbotGroup:AddDivider()
+
+
+    AimbotGroup:AddSlider(
+        "Aimbot_FOV",
+        {
+            Text =
+                "Campo de Visão (FOV)",
+
+            Default =
+                50,
+
+            Min = 5,
+            Max = 120,
+
+            Callback = function(v)
+                Config.Aimbot.FOV = v
+            end,
+        }
+    )
+
+
+    AimbotGroup:AddSlider(
+        "Aimbot_Smooth",
+        {
+            Text =
+                "Suavidade do Mouse",
+
+            Default =
+                12,
+
+            Min = 3,
+            Max = 40,
+
+            Callback = function(v)
+                Config.Aimbot.Smoothness = v
+            end,
+        }
+    )
+
+
+    AimbotGroup:AddDivider()
+
+
+    AimbotGroup:AddToggle(
+        "Toggle_AutoFire",
+        {
+            Text =
+                "Auto Fire (RemoteEvent)",
+
+            Default =
+                false,
+
+            Callback = function(v)
+                Config.Aimbot.AutoFire = v
+            end,
+        }
+    )
+
 
     ESPGroup:AddLabel(
         "Cor dos Corpos"

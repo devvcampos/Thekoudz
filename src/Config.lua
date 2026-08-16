@@ -40,4 +40,13 @@ local Config = {
     }
 }
 
+    Aimbot = {
+        Enabled = false,
+        FOV = 50,              -- Ângulo máximo para ativar (graus)
+        Smoothness = 12,       -- Quantos passos de mouse (quanto maior, mais lento/humano)
+        AutoFire = false,      -- Atirar automaticamente quando mirar?
+        FireDelay = 0.15       -- Delay mínimo entre tiros automáticos
+    }
+}
+
 return Config

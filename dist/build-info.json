@@ -1,15 +1,15 @@
 {
-  "build": "DDF33B897CA2",
+  "build": "B05C9A87BF07",
   "mode": "RELEASE-V5",
   "module_count": 8,
-  "bundle_sha256": "e7339afc2575ba5b10211693336256a50b4f24b978ebbcbe971387c6ffe277da",
+  "bundle_sha256": "1177e1ed1aabe4bd17acd4a3a5a4cfc7aca8f7d3339cff86e0c721778e611825",
   "sources": {
-    "Config.lua": "a00e67bec7ca887cbfa80e9d04f1493d3f0132b138be5223df58ea51c6521be3",
+    "Config.lua": "a54076406a3be74253190365cb883d5ab92ad9894850d5672326f2dd9dc385fc",
     "Library.lua": "9602fd8ac3492b039961c4c68a8b3922f8849d9f65999482e5c80eaf6e0cca78",
-    "Main.lua": "8df904423569f027440d97039e53424b444d6a95468b1bbdc0d86ab4370a4548",
+    "Main.lua": "caa456eaab27dc5e0775ff9c94e28d1d3b123d4214152a59e5b4f55bb5ff020e",
     "Modules/DeadBodyChams.lua": "531ec0d9a4374581164cbb4d9e9ca6ddeb18d17ab125261e49feec317bc26818",
     "Modules/ESP.lua": "6e954340ec07e2ba7cfcab01e8e028b0c0121b04d719b5dc8e94066bf3e17e3d",
-    "Ui.lua": "b84a0adcc7a90cf59387d04175106f53d7ea88e52aa7949751c7842638a07ce9",
+    "Ui.lua": "ee0b1e47f0126121c04e187442fd385f424a61c6d1074d02cc4e9a84b0216d08",
     "addons/SaveManager.lua": "dd40ab7adc7b1d7642ca1c35628b0a7de7bc379ee4ffeb118a7f5b3861fb4525",
     "addons/ThemeManager.lua": "ce8ebabda6fd463926ad1d4666baafdcdc6fe8217c81b8161ef80ad4ff46a283"
   }
