@@ -111,46 +111,89 @@ local function GetVisibilityInterval(plr)
 end
 
     -- =============================================
-    -- LIMPEZA DE UM PLAYER
+    -- LIMPEZA / LIFECYCLE
     -- =============================================
 
-local function RemoveESP(plr)
-    local data =
-        ESP_Drawings[plr]
+    local function SafeRemoveDrawing(Object)
+        if not Object then
+            return
+        end
 
-    -- Cache deve sempre ser limpo,
-    -- mesmo se não houver Drawing.
-    VisibilityCache[plr] = nil
+        pcall(function()
+            Object.Visible = false
+        end)
 
-    if not data then
-        return
+        pcall(function()
+            Object:Remove()
+        end)
     end
 
+
+    local function RemoveESP(plr)
+        local data =
+            ESP_Drawings[plr]
+
+        -- Limpa o cache mesmo se o Drawing
+        -- já tiver desaparecido.
+        VisibilityCache[plr] = nil
+
+        if not data then
+            return
+        end
+
         if UseDrawing and UseSquare then
-            if data.Box then
-                data.Box:Remove()
-            end
+            SafeRemoveDrawing(
+                data.Box
+            )
 
-            if data.HealthText then
-                data.HealthText:Remove()
-            end
+            SafeRemoveDrawing(
+                data.HealthText
+            )
 
-            if data.NameText then
-                data.NameText:Remove()
-            end
+            SafeRemoveDrawing(
+                data.NameText
+            )
 
-            if data.DistText then
-                data.DistText:Remove()
-            end
+            SafeRemoveDrawing(
+                data.DistText
+            )
+
         else
             if data.Container then
-                data.Container:Destroy()
+                pcall(function()
+                    data.Container:Destroy()
+                end)
             end
         end
 
+        -- Quebra nossas referências.
+        data.Box = nil
+        data.HealthText = nil
+        data.NameText = nil
+        data.DistText = nil
+        data.Container = nil
+
         ESP_Drawings[plr] = nil
-        VisibilityCache[plr] = nil
     end
+
+
+    -- =============================================
+    -- PLAYER LIFECYCLE
+    -- =============================================
+
+    local Players =
+        game:GetService("Players")
+
+    local PlayerRemovingConnection = nil
+
+    local Destroyed = false
+
+    PlayerRemovingConnection =
+        Players.PlayerRemoving:Connect(
+            function(plr)
+                RemoveESP(plr)
+            end
+        )
 
     -- =============================================
     -- PLAYER SAIU DO SERVIDOR
@@ -706,44 +749,132 @@ local Y =
         end
     end
 
-    -- =============================================
-    -- LÓGICA DE LIGAR/DESLIGAR
+     -- =============================================
+    -- LÓGICA DE LIGAR / DESLIGAR / DESTROY
     -- =============================================
 
     local ESPThread = nil
 
+
+    local function CleanupAll()
+        -- Faz uma lista antes de remover.
+        -- Assim não modificamos a tabela enquanto
+        -- percorremos diretamente com pairs().
+        local PlayersToRemove = {}
+
+        for plr in pairs(
+            ESP_Drawings
+        ) do
+            PlayersToRemove[
+                #PlayersToRemove + 1
+            ] = plr
+        end
+
+        for _, plr in ipairs(
+            PlayersToRemove
+        ) do
+            RemoveESP(plr)
+        end
+
+        -- Garantia extra.
+        table.clear(
+            ESP_Drawings
+        )
+
+        table.clear(
+            VisibilityCache
+        )
+
+        -- Libera referências usadas
+        -- pelo visibility check.
+        LastLocalCharacter = nil
+
+        VisibilityParams
+            .FilterDescendantsInstances = {}
+    end
+
+
     local function ToggleESP(State)
-        ESPConfig.Enabled = State
+        if Destroyed then
+            return
+        end
 
-        if State and not ESPThread then
+        ESPConfig.Enabled =
+            State == true
 
-            ESPThread = task.spawn(function()
-                local RS = game:GetService(runServiceStr)
+        -- =========================================
+        -- LIGAR
+        -- =========================================
 
-                while ESPConfig.Enabled do
-                    UpdateESP()
-                    RS.RenderStepped:Wait()
-                end
-
-                ESPThread = nil
-            end)
-
-        elseif not State and ESPThread then
-
-            ESPConfig.Enabled = false
-
-            -- Limpa todos os ESPs existentes
-            for plr in pairs(ESP_Drawings) do
-                RemoveESP(plr)
+        if ESPConfig.Enabled then
+            -- Já existe uma thread ativa.
+            if ESPThread then
+                return
             end
 
-            ESPThread = nil
+            ESPThread =
+                task.spawn(function()
+                    local RS =
+                        game:GetService(
+                            runServiceStr
+                        )
+
+                    while
+                        ESPConfig.Enabled
+                        and not Destroyed
+                    do
+                        UpdateESP()
+
+                        RS.RenderStepped:Wait()
+                    end
+
+                    ESPThread = nil
+                end)
+
+            return
+        end
+
+        -- =========================================
+        -- DESLIGAR
+        -- =========================================
+
+        CleanupAll()
+    end
+
+
+    local function Destroy()
+        if Destroyed then
+            return
+        end
+
+        Destroyed = true
+
+        ESPConfig.Enabled =
+            false
+
+        -- Remove drawings, GUIs,
+        -- caches e referências.
+        CleanupAll()
+
+        -- Remove conexão criada
+        -- pelo módulo.
+        if PlayerRemovingConnection then
+            PlayerRemovingConnection
+                :Disconnect()
+
+            PlayerRemovingConnection =
+                nil
         end
     end
 
-    -- API pública
+
+    -- =============================================
+    -- API PÚBLICA
+    -- =============================================
+
     return {
-        Toggle = ToggleESP
+        Toggle = ToggleESP,
+        Destroy = Destroy,
     }
 end
 
