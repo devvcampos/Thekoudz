@@ -1,10 +1,10 @@
 {
-  "build": "CAD3D838FF0B",
+  "build": "4BDD3182B3AF",
   "mode": "RELEASE-V5",
   "module_count": 9,
-  "bundle_sha256": "82b2051bdc6e584604a8c6a0e1395e45c0b8c35538c83d4106961fa0514553fa",
+  "bundle_sha256": "32f10a84ebca784a777815f30002d886e91b7f4261a2b371af2f4b35140dc4a1",
   "sources": {
-    "Config.lua": "ed1ebb27f43aad1ff944911f87b0ff8b10e44611186587a2638271a3e21524aa",
+    "Config.lua": "8aec124477bb5737db5f9a35c720fde077f2e60a959d083950eeace43ae083cd",
     "Library.lua": "9602fd8ac3492b039961c4c68a8b3922f8849d9f65999482e5c80eaf6e0cca78",
     "Main.lua": "964a6c463d4be2810ceae7cc21e6f73c4f5a637775b9215fb244b1fba07cc955",
     "Modules/Aimbot.lua": "5022c0da5e470280337df01c270271c4cf3594caabf76f04426f745f2c2bdfb6",
