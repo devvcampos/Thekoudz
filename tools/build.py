@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import sys
@@ -12,27 +13,22 @@ from pathlib import Path
 # ============================================================
 
 ROOT = Path(__file__).resolve().parent.parent
-
 SRC = ROOT / "src"
 DIST = ROOT / "dist"
-
 OUTPUT = DIST / "Thekoudz.lua"
 
 
 # ============================================================
-# ARQUIVOS QUE ENTRAM NA BUILD
+# ARQUIVOS DA BUILD
 # ============================================================
 
 MODULES = [
     "Main.lua",
-
     "Config.lua",
     "Ui.lua",
     "Library.lua",
-
     "Modules/ESP.lua",
     "Modules/DeadBodyChams.lua",
-
     "addons/ThemeManager.lua",
     "addons/SaveManager.lua",
 ]
@@ -43,14 +39,8 @@ MODULES = [
 # ============================================================
 
 def lua_long_string(text: str) -> str:
-    """
-    Gera uma long string Lua que não conflite
-    com o conteúdo do arquivo.
-    """
-
-    for level in range(20):
+    for level in range(32):
         equals = "=" * level
-
         closing = "]" + equals + "]"
 
         if closing not in text:
@@ -65,12 +55,12 @@ def lua_long_string(text: str) -> str:
             )
 
     raise RuntimeError(
-        "Não foi possível gerar uma long string segura."
+        "Não foi possível gerar uma long string Lua segura."
     )
 
 
 # ============================================================
-# LEITURA DAS SOURCES
+# SOURCES
 # ============================================================
 
 def read_sources() -> dict[str, str]:
@@ -79,7 +69,7 @@ def read_sources() -> dict[str, str]:
     for relative in MODULES:
         path = SRC / relative
 
-        if not path.exists():
+        if not path.is_file():
             raise FileNotFoundError(
                 f"Arquivo não encontrado: {path}"
             )
@@ -96,50 +86,74 @@ def read_sources() -> dict[str, str]:
 # ============================================================
 
 def calculate_build_id(
-    sources: dict[str, str]
+    sources: dict[str, str],
 ) -> str:
-
     digest = hashlib.sha256()
 
     for name in sorted(sources):
-        digest.update(
-            name.encode("utf-8")
-        )
-
-        digest.update(
-            b"\0"
-        )
-
-        digest.update(
-            sources[name].encode("utf-8")
-        )
-
-        digest.update(
-            b"\0"
-        )
+        digest.update(name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(sources[name].encode("utf-8"))
+        digest.update(b"\0")
 
     return digest.hexdigest()[:12].upper()
 
 
 # ============================================================
-# GERADOR
+# RELEASE ENCODING
+# ============================================================
+
+def make_key(build_id: str) -> bytes:
+    digest = hashlib.sha256(
+        build_id.encode("utf-8")
+    ).digest()
+
+    return digest[:16]
+
+
+def encode_source(
+    source: str,
+    key: bytes,
+) -> str:
+    raw = source.encode("utf-8")
+
+    transformed = bytes(
+        byte ^ key[index % len(key)]
+        for index, byte in enumerate(raw)
+    )
+
+    return base64.b64encode(
+        transformed
+    ).decode("ascii")
+
+
+# ============================================================
+# BUNDLE
 # ============================================================
 
 def generate_bundle(
     sources: dict[str, str],
     build_id: str,
+    release: bool,
 ) -> str:
-
     parts: list[str] = []
+    key = make_key(build_id)
+
+    mode = (
+        "RELEASE"
+        if release
+        else "DEV"
+    )
 
     parts.append(
         "-- AUTO-GENERATED FILE\n"
         "-- DO NOT EDIT\n"
-        f"-- BUILD: {build_id}\n\n"
+        f"-- BUILD: {build_id}\n"
+        f"-- MODE: {mode}\n\n"
     )
 
     # --------------------------------------------------------
-    # TABELA INTERNA DE SOURCES
+    # SOURCES INTERNAS
     # --------------------------------------------------------
 
     parts.append(
@@ -149,15 +163,26 @@ def generate_bundle(
     for name in MODULES:
         encoded_name = json.dumps(name)
 
-source = lua_long_string(
-    sources[name]
-)
+        if release:
+            encoded_source = encode_source(
+                sources[name],
+                key,
+            )
+
+            source_literal = json.dumps(
+                encoded_source
+            )
+
+        else:
+            source_literal = lua_long_string(
+                sources[name]
+            )
 
         parts.append(
             "    ["
             + encoded_name
             + "] = "
-            + source
+            + source_literal
             + ",\n"
         )
 
@@ -166,12 +191,112 @@ source = lua_long_string(
     )
 
     # --------------------------------------------------------
-    # CACHE INTERNO
+    # DECODER DE RELEASE
+    # --------------------------------------------------------
+
+    if release:
+        lua_key = ", ".join(
+            str(value)
+            for value in key
+        )
+
+        parts.append(
+            f"""local __K = {{{lua_key}}}
+
+local __B64 =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
+
+local function __D64(data)
+    data = data:gsub(
+        "[^" .. __B64 .. "=]",
+        ""
+    )
+
+    return (
+        data:gsub(".", function(x)
+            if x == "=" then
+                return ""
+            end
+
+            local r = ""
+            local f =
+                (__B64:find(x, 1, true) or 1)
+                - 1
+
+            for i = 6, 1, -1 do
+                r =
+                    r
+                    .. (
+                        f % 2 ^ i
+                        - f % 2 ^ (i - 1)
+                        > 0
+                        and "1"
+                        or "0"
+                    )
+            end
+
+            return r
+        end)
+        :gsub(
+            "%d%d%d?%d?%d?%d?%d?%d?",
+            function(x)
+                if #x ~= 8 then
+                    return ""
+                end
+
+                local c = 0
+
+                for i = 1, 8 do
+                    if x:sub(i, i) == "1" then
+                        c =
+                            c
+                            + 2 ^ (8 - i)
+                    end
+                end
+
+                return string.char(c)
+            end
+        )
+    )
+end
+
+local function __Decode(data)
+    local raw =
+        __D64(data)
+
+    local out = {{}}
+
+    for i = 1, #raw do
+        local keyIndex =
+            ((i - 1) % #__K)
+            + 1
+
+        out[i] =
+            string.char(
+                bit32.bxor(
+                    raw:byte(i),
+                    __K[keyIndex]
+                )
+            )
+    end
+
+    return table.concat(out)
+end
+
+"""
+        )
+
+        source_expression = "__Decode(__S[path])"
+
+    else:
+        source_expression = "__S[path]"
+
+    # --------------------------------------------------------
+    # LOADER INTERNO
     # --------------------------------------------------------
 
     parts.append(
-        """
-local __C = {}
+        f"""local __C = {{}}
 
 local function __L(path)
     local cached = __C[path]
@@ -180,7 +305,8 @@ local function __L(path)
         return cached
     end
 
-    local source = __S[path]
+    local source =
+        {source_expression}
 
     assert(
         source ~= nil,
@@ -229,8 +355,7 @@ end
     # --------------------------------------------------------
 
     parts.append(
-        """
-local __Main =
+        """local __Main =
     __L("Main.lua")
 
 assert(
@@ -250,18 +375,19 @@ return __Main(__L)
 # ============================================================
 
 def build() -> str:
+    release = "--release" in sys.argv
+
     sources = read_sources()
 
-    build_id =
-        calculate_build_id(
-            sources
-        )
+    build_id = calculate_build_id(
+        sources
+    )
 
-    bundle =
-        generate_bundle(
-            sources,
-            build_id,
-        )
+    bundle = generate_bundle(
+        sources,
+        build_id,
+        release,
+    )
 
     DIST.mkdir(
         parents=True,
@@ -274,18 +400,27 @@ def build() -> str:
         newline="\n",
     )
 
-    size_kb =
-        OUTPUT.stat().st_size / 1024
+    size_kb = (
+        OUTPUT.stat().st_size
+        / 1024
+    )
+
+    mode = (
+        "RELEASE"
+        if release
+        else "DEV"
+    )
 
     print()
     print(
+        f"[MODE] {mode}"
+    )
+    print(
         f"[BUILD] {build_id}"
     )
-
     print(
         f"[OK] {OUTPUT}"
     )
-
     print(
         f"[SIZE] {size_kb:.1f} KB"
     )
@@ -294,7 +429,7 @@ def build() -> str:
 
 
 # ============================================================
-# WATCHER
+# ASSINATURA DAS SOURCES
 # ============================================================
 
 def source_signature() -> str:
@@ -303,30 +438,49 @@ def source_signature() -> str:
     for relative in MODULES:
         path = SRC / relative
 
-        if not path.exists():
+        digest.update(
+            relative.encode("utf-8")
+        )
+
+        if path.is_file():
             digest.update(
-                relative.encode()
+                path.read_bytes()
             )
 
-            continue
+        else:
+            digest.update(
+                b"<missing>"
+            )
 
-        digest.update(
-            relative.encode()
-        )
-
-        digest.update(
-            path.read_bytes()
-        )
+    digest.update(
+        b"release"
+        if "--release" in sys.argv
+        else b"dev"
+    )
 
     return digest.hexdigest()
 
 
+# ============================================================
+# WATCH
+# ============================================================
+
 def watch() -> None:
-    print(
-        "[WATCH] Observando src/..."
+    mode = (
+        "RELEASE"
+        if "--release" in sys.argv
+        else "DEV"
     )
 
-    previous = None
+    print(
+        f"[WATCH] Modo {mode}"
+    )
+
+    print(
+        f"[WATCH] Observando: {SRC}"
+    )
+
+    previous: str | None = None
 
     while True:
         try:
@@ -335,18 +489,20 @@ def watch() -> None:
             if current != previous:
                 try:
                     build()
-
                     previous = current
+
                 except Exception as exc:
                     print(
-                        "[ERRO]",
-                        exc
+                        f"[ERRO] {exc}"
                     )
 
-            time.sleep(0.35)
+            time.sleep(
+                0.35
+            )
 
         except KeyboardInterrupt:
             print()
+
             print(
                 "[WATCH] Encerrado."
             )
@@ -355,11 +511,16 @@ def watch() -> None:
 
 
 # ============================================================
-# CLI
+# MAIN
 # ============================================================
 
-if __name__ == "__main__":
+def main() -> None:
     if "--watch" in sys.argv:
         watch()
+
     else:
         build()
+
+
+if __name__ == "__main__":
+    main()
