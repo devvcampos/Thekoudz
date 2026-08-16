@@ -17,7 +17,7 @@ return function(LoadModule)
     ---------------------------------------------------------
     local ESPModule = LoadModule("Modules/ESP.lua")
     local DeadBodyModule = LoadModule("Modules/DeadBodyChams.lua")
-    local AimbotModule = LoadModule("Aimbot.lua") -- NOVO: Carregando o seu aimbot
+    local AimbotModule = LoadModule(" Modules/Aimbot.lua") -- NOVO: Carregando o seu aimbot
     local UI = LoadModule("Ui.lua")
 
     ---------------------------------------------------------
