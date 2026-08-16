@@ -13,6 +13,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 DIST = ROOT / "dist"
+
 OUTPUT = DIST / "Thekoudz.lua"
 INFO_OUTPUT = DIST / "build-info.json"
 
@@ -27,6 +28,10 @@ MODULES = [
     "addons/SaveManager.lua",
 ]
 
+
+# ============================================================
+# BASIC HELPERS
+# ============================================================
 
 def lua_long_string(text: str) -> str:
     for level in range(32):
@@ -124,12 +129,16 @@ def random_identifier(
             return value
 
 
+# ============================================================
+# MODULE IDS / SOURCE REWRITE
+# ============================================================
+
 def make_module_ids(
     build_id: str,
 ) -> dict[str, int]:
     rng = make_rng(
         build_id,
-        "module-ids",
+        "module-ids-v5",
     )
 
     used: set[int] = set()
@@ -177,13 +186,17 @@ def rewrite_module_references(
     return rewritten
 
 
+# ============================================================
+# PAYLOAD ENCODING
+# ============================================================
+
 def make_stream_seed(
     build_id: str,
     module_id: int,
 ) -> int:
     digest = hashlib.sha256(
         (
-            "stream:"
+            "stream-v5:"
             + build_id
             + ":"
             + str(module_id)
@@ -231,6 +244,37 @@ def encode_source(
     ).decode("ascii")
 
 
+def split_payload(
+    payload: str,
+    rng: random.Random,
+) -> list[str]:
+    if len(payload) <= 256:
+        return [payload]
+
+    chunks: list[str] = []
+    index = 0
+
+    while index < len(payload):
+        width = rng.randint(
+            180,
+            420,
+        )
+
+        chunks.append(
+            payload[
+                index:index + width
+            ]
+        )
+
+        index += width
+
+    return chunks
+
+
+# ============================================================
+# INTEGRITY
+# ============================================================
+
 def adler32_bytes(
     data: bytes,
 ) -> int:
@@ -258,6 +302,10 @@ def source_metadata(
         adler32_bytes(raw),
     )
 
+
+# ============================================================
+# DEV BUNDLE
+# ============================================================
 
 def generate_dev_bundle(
     sources: dict[str, str],
@@ -356,6 +404,10 @@ return __Main(__L)
     return "".join(parts)
 
 
+# ============================================================
+# RELEASE V5
+# ============================================================
+
 def generate_release_bundle(
     sources: dict[str, str],
     build_id: str,
@@ -371,11 +423,12 @@ def generate_release_bundle(
 
     rng = make_rng(
         build_id,
-        "wrapper",
+        "wrapper-v5",
     )
 
     used: set[str] = set()
 
+    # Core names
     n_payload = random_identifier(rng, used)
     n_seed = random_identifier(rng, used)
     n_length = random_identifier(rng, used)
@@ -386,8 +439,10 @@ def generate_release_bundle(
     n_stream = random_identifier(rng, used)
     n_decode = random_identifier(rng, used)
     n_check = random_identifier(rng, used)
+    n_join = random_identifier(rng, used)
     n_load = random_identifier(rng, used)
 
+    # Locals
     n_data = random_identifier(rng, used)
     n_x = random_identifier(rng, used)
     n_r = random_identifier(rng, used)
@@ -409,6 +464,7 @@ def generate_release_bundle(
     n_byte = random_identifier(rng, used)
     n_actual = random_identifier(rng, used)
     n_main = random_identifier(rng, used)
+    n_parts = random_identifier(rng, used)
 
     module_order = list(MODULES)
     rng.shuffle(module_order)
@@ -431,12 +487,45 @@ def generate_release_bundle(
             seed,
         )
 
+        chunk_rng = make_rng(
+            build_id,
+            "chunks:" + str(module_id),
+        )
+
+        chunks = split_payload(
+            encoded,
+            chunk_rng,
+        )
+
+        # Physical chunk order is shuffled, but each chunk keeps
+        # an explicit numeric position so runtime reconstruction
+        # remains deterministic.
+        indexed_chunks = list(
+            enumerate(
+                chunks,
+                start=1,
+            )
+        )
+
+        chunk_rng.shuffle(
+            indexed_chunks
+        )
+
+        chunk_table = (
+            "{"
+            + ",".join(
+                f"[{index}]={json.dumps(chunk)}"
+                for index, chunk in indexed_chunks
+            )
+            + "}"
+        )
+
         length, tag = source_metadata(
             rewritten[name]
         )
 
         payload_entries.append(
-            f"[{module_id}]={json.dumps(encoded)}"
+            f"[{module_id}]={chunk_table}"
         )
 
         seed_entries.append(
@@ -471,13 +560,70 @@ def generate_release_bundle(
         "Main.lua"
     ]
 
-    return (
+    # Split the Base64 alphabet into several literal fragments so
+    # the wrapper layout differs from previous releases.
+    alphabet = (
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        "abcdefghijklmnopqrstuvwxyz"
+        "0123456789+/"
+    )
+
+    alphabet_parts = [
+        alphabet[:17],
+        alphabet[17:39],
+        alphabet[39:56],
+        alphabet[56:],
+    ]
+
+    rng.shuffle(
+        alphabet_parts
+    )
+
+    # We need original alphabet order at runtime, so store fragments
+    # in an indexed table with physical declaration order shuffled.
+    alphabet_indexed = list(
+        enumerate(
+            [
+                alphabet[:17],
+                alphabet[17:39],
+                alphabet[39:56],
+                alphabet[56:],
+            ],
+            start=1,
+        )
+    )
+
+    rng.shuffle(
+        alphabet_indexed
+    )
+
+    alpha_table = (
+        "{"
+        + ",".join(
+            f"[{index}]={json.dumps(fragment)}"
+            for index, fragment in alphabet_indexed
+        )
+        + "}"
+    )
+
+    # One of three equivalent loader layouts is selected
+    # deterministically from the build id.
+    loader_profile = rng.randrange(
+        0,
+        3,
+    )
+
+    prefix = (
         f"local {n_payload}={{{payload_table}}};"
         f"local {n_seed}={{{seed_table}}};"
         f"local {n_length}={{{length_table}}};"
         f"local {n_tag}={{{tag_table}}};"
         f"local {n_cache}={{}};"
-        f'local {n_alpha}="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";'
+        f"local {n_parts}={alpha_table};"
+        f"local {n_alpha}=table.concat({n_parts});"
+    )
+
+    common = (
         f"local function {n_b64}({n_data})"
         f"{n_data}={n_data}:gsub(\"[^\"..{n_alpha}..\"=]\",\"\");"
         f"return({n_data}:gsub(\".\",function({n_x})"
@@ -505,8 +651,11 @@ def generate_release_bundle(
         f"{n_state}=bit32.bxor({n_state},bit32.lshift({n_state},5));"
         f"return bit32.band({n_state},4294967295);"
         f"end;"
+        f"local function {n_join}({n_data})"
+        f"return table.concat({n_data});"
+        f"end;"
         f"local function {n_decode}({n_data},{n_state})"
-        f"local {n_raw}={n_b64}({n_data});"
+        f"local {n_raw}={n_b64}({n_join}({n_data}));"
         f"local {n_out}={{}};"
         f"for {n_i}=1,#{n_raw} do "
         f"{n_state}={n_stream}({n_state});"
@@ -524,28 +673,86 @@ def generate_release_bundle(
         f"end;"
         f"return {n_b}*65536+{n_a};"
         f"end;"
-        f"local function {n_load}({n_id})"
-        f"local {n_cached}={n_cache}[{n_id}];"
-        f"if {n_cached}~=nil then return {n_cached} end;"
-        f"local {n_source}={n_payload}[{n_id}];"
-        f"assert({n_source}~=nil,\"modulo ausente\");"
-        f"{n_source}={n_decode}({n_source},{n_seed}[{n_id}]);"
-        f"assert(#{n_source}=={n_length}[{n_id}],\"payload truncado\");"
-        f"local {n_actual}={n_check}({n_source});"
-        f"assert({n_actual}=={n_tag}[{n_id}],\"payload corrompido\");"
-        f"local {n_chunk},{n_err}=loadstring({n_source});"
-        f"assert({n_chunk},{n_err});"
-        f"local {n_ok},{n_result}=pcall({n_chunk});"
-        f"assert({n_ok},{n_result});"
-        f"assert({n_result}~=nil,\"modulo retornou nil\");"
-        f"{n_cache}[{n_id}]={n_result};"
-        f"return {n_result};"
-        f"end;"
+    )
+
+    if loader_profile == 0:
+        loader = (
+            f"local function {n_load}({n_id})"
+            f"local {n_cached}={n_cache}[{n_id}];"
+            f"if {n_cached}~=nil then return {n_cached} end;"
+            f"local {n_source}={n_payload}[{n_id}];"
+            f"assert({n_source}~=nil,\"modulo ausente\");"
+            f"{n_source}={n_decode}({n_source},{n_seed}[{n_id}]);"
+            f"assert(#{n_source}=={n_length}[{n_id}],\"payload truncado\");"
+            f"assert({n_check}({n_source})=={n_tag}[{n_id}],\"payload corrompido\");"
+            f"local {n_chunk},{n_err}=loadstring({n_source});"
+            f"assert({n_chunk},{n_err});"
+            f"local {n_ok},{n_result}=pcall({n_chunk});"
+            f"assert({n_ok},{n_result});"
+            f"assert({n_result}~=nil,\"modulo retornou nil\");"
+            f"{n_cache}[{n_id}]={n_result};"
+            f"return {n_result};"
+            f"end;"
+        )
+
+    elif loader_profile == 1:
+        loader = (
+            f"local function {n_load}({n_id})"
+            f"if {n_cache}[{n_id}]~=nil then return {n_cache}[{n_id}] end;"
+            f"local {n_source}={n_payload}[{n_id}];"
+            f"assert({n_source},\"modulo ausente\");"
+            f"{n_source}={n_decode}({n_source},{n_seed}[{n_id}]);"
+            f"local {n_actual}=#{n_source};"
+            f"assert({n_actual}=={n_length}[{n_id}],\"payload truncado\");"
+            f"{n_actual}={n_check}({n_source});"
+            f"assert({n_actual}=={n_tag}[{n_id}],\"payload corrompido\");"
+            f"local {n_chunk},{n_err}=loadstring({n_source});"
+            f"assert({n_chunk},{n_err});"
+            f"local {n_ok},{n_result}=pcall({n_chunk});"
+            f"if not {n_ok} then error({n_result}) end;"
+            f"assert({n_result}~=nil,\"modulo retornou nil\");"
+            f"{n_cache}[{n_id}]={n_result};"
+            f"return {n_cache}[{n_id}];"
+            f"end;"
+        )
+
+    else:
+        loader = (
+            f"local function {n_load}({n_id})"
+            f"local {n_cached}={n_cache}[{n_id}];"
+            f"if {n_cached} then return {n_cached} end;"
+            f"local {n_source}=assert({n_payload}[{n_id}],\"modulo ausente\");"
+            f"{n_source}={n_decode}({n_source},{n_seed}[{n_id}]);"
+            f"assert({n_length}[{n_id}]==#{n_source},\"payload truncado\");"
+            f"local {n_actual}={n_check}({n_source});"
+            f"assert({n_tag}[{n_id}]=={n_actual},\"payload corrompido\");"
+            f"local {n_chunk},{n_err}=loadstring({n_source});"
+            f"if not {n_chunk} then error({n_err}) end;"
+            f"local {n_ok},{n_result}=pcall({n_chunk});"
+            f"if not {n_ok} then error({n_result}) end;"
+            f"assert({n_result}~=nil,\"modulo retornou nil\");"
+            f"{n_cache}[{n_id}]={n_result};"
+            f"return {n_result};"
+            f"end;"
+        )
+
+    suffix = (
         f"local {n_main}={n_load}({main_id});"
         f"assert(type({n_main})==\"function\",\"entrypoint invalido\");"
         f"return {n_main}({n_load})"
     )
 
+    return (
+        prefix
+        + common
+        + loader
+        + suffix
+    )
+
+
+# ============================================================
+# BUILD WRAPPER
+# ============================================================
 
 def generate_bundle(
     sources: dict[str, str],
@@ -564,6 +771,10 @@ def generate_bundle(
     )
 
 
+# ============================================================
+# BUILD INFO / VALIDATION
+# ============================================================
+
 def write_build_info(
     sources: dict[str, str],
     build_id: str,
@@ -573,7 +784,7 @@ def write_build_info(
     info = {
         "build": build_id,
         "mode": (
-            "RELEASE-V4"
+            "RELEASE-V5"
             if release
             else "DEV"
         ),
@@ -617,8 +828,11 @@ def validate_bundle_text(
             "Modules/DeadBodyChams.lua",
             "Library.lua",
             "Config.lua",
+            "Ui.lua",
             "__Decode",
             "__L",
+            "AUTO-GENERATED FILE",
+            "MODE:",
         ]
 
         leaks = [
@@ -633,12 +847,21 @@ def validate_bundle_text(
                 + ", ".join(leaks)
             )
 
+        if len(bundle) < 1000:
+            raise RuntimeError(
+                "Bundle RELEASE pequeno demais."
+            )
+
     else:
         if "Main.lua" not in bundle:
             raise RuntimeError(
                 "Bundle DEV não contém o entrypoint."
             )
 
+
+# ============================================================
+# BUILD
+# ============================================================
 
 def build() -> str:
     release = "--release" in sys.argv
@@ -684,7 +907,7 @@ def build() -> str:
     )
 
     mode = (
-        "RELEASE-V4"
+        "RELEASE-V5"
         if release
         else "DEV"
     )
@@ -709,6 +932,10 @@ def build() -> str:
     return build_id
 
 
+# ============================================================
+# WATCH
+# ============================================================
+
 def source_signature() -> str:
     digest = hashlib.sha256()
 
@@ -730,7 +957,7 @@ def source_signature() -> str:
             )
 
     digest.update(
-        b"release-v4"
+        b"release-v5"
         if "--release" in sys.argv
         else b"dev"
     )
@@ -740,7 +967,7 @@ def source_signature() -> str:
 
 def watch() -> None:
     mode = (
-        "RELEASE-V4"
+        "RELEASE-V5"
         if "--release" in sys.argv
         else "DEV"
     )

@@ -1,8 +1,8 @@
 {
   "build": "DDF33B897CA2",
-  "mode": "RELEASE-V4",
+  "mode": "RELEASE-V5",
   "module_count": 8,
-  "bundle_sha256": "94bfb6e20a43b0c4e70b51179cb1c9bfbcaeafa216b181111d024dc0681e9736",
+  "bundle_sha256": "e7339afc2575ba5b10211693336256a50b4f24b978ebbcbe971387c6ffe277da",
   "sources": {
     "Config.lua": "a00e67bec7ca887cbfa80e9d04f1493d3f0132b138be5223df58ea51c6521be3",
     "Library.lua": "9602fd8ac3492b039961c4c68a8b3922f8849d9f65999482e5c80eaf6e0cca78",
