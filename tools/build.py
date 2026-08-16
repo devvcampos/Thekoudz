@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 DIST = ROOT / "dist"
 OUTPUT = DIST / "Thekoudz.lua"
+INFO_OUTPUT = DIST / "build-info.json"
 
 MODULES = [
     "Main.lua",
@@ -59,9 +60,16 @@ def read_sources() -> dict[str, str]:
                 f"Arquivo não encontrado: {path}"
             )
 
-        sources[relative] = path.read_text(
+        text = path.read_text(
             encoding="utf-8-sig"
         )
+
+        if not text.strip():
+            raise ValueError(
+                f"Source vazia: {path}"
+            )
+
+        sources[relative] = text
 
     return sources
 
@@ -80,10 +88,13 @@ def calculate_build_id(
     return digest.hexdigest()[:12].upper()
 
 
-def make_rng(build_id: str) -> random.Random:
+def make_rng(
+    build_id: str,
+    domain: str,
+) -> random.Random:
     seed = int(
         hashlib.sha256(
-            ("v3:" + build_id).encode("utf-8")
+            (domain + ":" + build_id).encode("utf-8")
         ).hexdigest(),
         16,
     )
@@ -94,16 +105,16 @@ def make_rng(build_id: str) -> random.Random:
 def random_identifier(
     rng: random.Random,
     used: set[str],
-    length: int = 12,
+    length: int = 13,
 ) -> str:
-    alphabet_rest = string.ascii_letters + "_" + string.digits
+    rest = string.ascii_letters + string.digits + "_"
 
     while True:
         value = (
             "_"
             + rng.choice(string.ascii_letters)
             + "".join(
-                rng.choice(alphabet_rest)
+                rng.choice(rest)
                 for _ in range(length - 2)
             )
         )
@@ -113,46 +124,52 @@ def random_identifier(
             return value
 
 
-def make_module_aliases(
+def make_module_ids(
     build_id: str,
-) -> dict[str, str]:
-    aliases: dict[str, str] = {}
+) -> dict[str, int]:
+    rng = make_rng(
+        build_id,
+        "module-ids",
+    )
 
-    for index, name in enumerate(MODULES):
-        digest = hashlib.blake2s(
-            (
-                build_id
-                + "\0"
-                + str(index)
-                + "\0"
-                + name
-            ).encode("utf-8"),
-            digest_size=8,
-        ).hexdigest()
+    used: set[int] = set()
+    result: dict[str, int] = {}
 
-        aliases[name] = digest
+    for name in MODULES:
+        while True:
+            value = rng.randrange(
+                100_000_000,
+                2_000_000_000,
+            )
 
-    return aliases
+            if value not in used:
+                used.add(value)
+                result[name] = value
+                break
+
+    return result
 
 
 def rewrite_module_references(
     sources: dict[str, str],
-    aliases: dict[str, str],
+    module_ids: dict[str, int],
 ) -> dict[str, str]:
     rewritten: dict[str, str] = {}
 
     for source_name, source in sources.items():
         updated = source
 
-        for module_name, alias in aliases.items():
+        for module_name, module_id in module_ids.items():
+            replacement = str(module_id)
+
             updated = updated.replace(
                 json.dumps(module_name),
-                json.dumps(alias),
+                replacement,
             )
 
             updated = updated.replace(
                 "'" + module_name + "'",
-                "'" + alias + "'",
+                replacement,
             )
 
         rewritten[source_name] = updated
@@ -160,70 +177,124 @@ def rewrite_module_references(
     return rewritten
 
 
-def make_key(
+def make_stream_seed(
     build_id: str,
-) -> bytes:
+    module_id: int,
+) -> int:
     digest = hashlib.sha256(
-        ("payload:" + build_id).encode("utf-8")
+        (
+            "stream:"
+            + build_id
+            + ":"
+            + str(module_id)
+        ).encode("utf-8")
     ).digest()
 
-    return digest[:16]
+    value = int.from_bytes(
+        digest[:4],
+        "big",
+    ) & 0xFFFFFFFF
+
+    return value or 0xA5A5A5A5
+
+
+def xorshift32(
+    value: int,
+) -> int:
+    value &= 0xFFFFFFFF
+    value ^= (value << 13) & 0xFFFFFFFF
+    value ^= (value >> 17) & 0xFFFFFFFF
+    value ^= (value << 5) & 0xFFFFFFFF
+    return value & 0xFFFFFFFF
 
 
 def encode_source(
     source: str,
-    key: bytes,
+    seed: int,
 ) -> str:
     raw = source.encode("utf-8")
 
-    transformed = bytes(
-        byte ^ key[index % len(key)]
-        for index, byte in enumerate(raw)
-    )
+    state = seed
+    out = bytearray()
+
+    for byte in raw:
+        state = xorshift32(
+            state
+        )
+
+        out.append(
+            byte ^ (state & 0xFF)
+        )
 
     return base64.b64encode(
-        transformed
+        bytes(out)
     ).decode("ascii")
 
 
-def generate_bundle(
+def adler32_bytes(
+    data: bytes,
+) -> int:
+    mod = 65521
+    a = 1
+    b = 0
+
+    for value in data:
+        a = (a + value) % mod
+        b = (b + a) % mod
+
+    return (
+        (b << 16)
+        | a
+    )
+
+
+def source_metadata(
+    source: str,
+) -> tuple[int, int]:
+    raw = source.encode("utf-8")
+
+    return (
+        len(raw),
+        adler32_bytes(raw),
+    )
+
+
+def generate_dev_bundle(
     sources: dict[str, str],
     build_id: str,
-    release: bool,
 ) -> str:
-    if not release:
-        parts: list[str] = []
+    parts: list[str] = []
 
-        parts.append(
-            "-- AUTO-GENERATED FILE\n"
-            "-- DO NOT EDIT\n"
-            f"-- BUILD: {build_id}\n"
-            "-- MODE: DEV\n\n"
+    parts.append(
+        "-- AUTO-GENERATED FILE\n"
+        "-- DO NOT EDIT\n"
+        f"-- BUILD: {build_id}\n"
+        "-- MODE: DEV\n\n"
+    )
+
+    parts.append(
+        "local __S = {\n"
+    )
+
+    for name in MODULES:
+        source_literal = lua_long_string(
+            sources[name]
         )
 
         parts.append(
-            "local __S = {\n"
+            "    ["
+            + json.dumps(name)
+            + "] = "
+            + source_literal
+            + ",\n"
         )
 
-        for name in MODULES:
-            source_literal = lua_long_string(
-                sources[name]
-            )
+    parts.append(
+        "}\n\n"
+    )
 
-            parts.append(
-                "    ["
-                + json.dumps(name)
-                + "] = "
-                + source_literal
-                + ",\n"
-            )
-
-        parts.append(
-            "}\n\n"
-        )
-
-        parts.append(
-            """local __C = {}
+    parts.append(
+        """local __C = {}
 
 local function __L(path)
     local cached = __C[path]
@@ -280,166 +351,293 @@ assert(
 
 return __Main(__L)
 """
-        )
+    )
 
-        return "".join(parts)
+    return "".join(parts)
 
-    aliases = make_module_aliases(
+
+def generate_release_bundle(
+    sources: dict[str, str],
+    build_id: str,
+) -> str:
+    module_ids = make_module_ids(
         build_id
     )
 
-    rewritten_sources = rewrite_module_references(
+    rewritten = rewrite_module_references(
         sources,
-        aliases,
+        module_ids,
     )
 
     rng = make_rng(
-        build_id
+        build_id,
+        "wrapper",
     )
 
     used: set[str] = set()
 
-    n_sources = random_identifier(rng, used)
+    n_payload = random_identifier(rng, used)
+    n_seed = random_identifier(rng, used)
+    n_length = random_identifier(rng, used)
+    n_tag = random_identifier(rng, used)
     n_cache = random_identifier(rng, used)
-    n_key = random_identifier(rng, used)
+    n_alpha = random_identifier(rng, used)
     n_b64 = random_identifier(rng, used)
-    n_decode64 = random_identifier(rng, used)
+    n_stream = random_identifier(rng, used)
     n_decode = random_identifier(rng, used)
+    n_check = random_identifier(rng, used)
     n_load = random_identifier(rng, used)
-    n_path = random_identifier(rng, used)
-    n_cached = random_identifier(rng, used)
-    n_source = random_identifier(rng, used)
-    n_chunk = random_identifier(rng, used)
-    n_err = random_identifier(rng, used)
-    n_ok = random_identifier(rng, used)
-    n_result = random_identifier(rng, used)
+
     n_data = random_identifier(rng, used)
     n_x = random_identifier(rng, used)
     n_r = random_identifier(rng, used)
     n_f = random_identifier(rng, used)
     n_i = random_identifier(rng, used)
     n_c = random_identifier(rng, used)
-    n_raw = random_identifier(rng, used)
+    n_state = random_identifier(rng, used)
     n_out = random_identifier(rng, used)
-    n_key_index = random_identifier(rng, used)
+    n_raw = random_identifier(rng, used)
+    n_id = random_identifier(rng, used)
+    n_cached = random_identifier(rng, used)
+    n_source = random_identifier(rng, used)
+    n_chunk = random_identifier(rng, used)
+    n_err = random_identifier(rng, used)
+    n_ok = random_identifier(rng, used)
+    n_result = random_identifier(rng, used)
+    n_a = random_identifier(rng, used)
+    n_b = random_identifier(rng, used)
+    n_byte = random_identifier(rng, used)
+    n_actual = random_identifier(rng, used)
     n_main = random_identifier(rng, used)
-
-    key = make_key(
-        build_id
-    )
 
     module_order = list(MODULES)
     rng.shuffle(module_order)
 
-    parts: list[str] = []
-
-    parts.append(
-        f"local {n_sources}={{"
-    )
+    payload_entries: list[str] = []
+    seed_entries: list[str] = []
+    length_entries: list[str] = []
+    tag_entries: list[str] = []
 
     for name in module_order:
-        alias = aliases[name]
+        module_id = module_ids[name]
 
-        encoded_source = encode_source(
-            rewritten_sources[name],
-            key,
+        seed = make_stream_seed(
+            build_id,
+            module_id,
         )
 
-        parts.append(
-            "["
-            + json.dumps(alias)
-            + "]="
-            + json.dumps(encoded_source)
-            + ","
+        encoded = encode_source(
+            rewritten[name],
+            seed,
         )
 
-    parts.append(
-        "};"
+        length, tag = source_metadata(
+            rewritten[name]
+        )
+
+        payload_entries.append(
+            f"[{module_id}]={json.dumps(encoded)}"
+        )
+
+        seed_entries.append(
+            f"[{module_id}]={seed}"
+        )
+
+        length_entries.append(
+            f"[{module_id}]={length}"
+        )
+
+        tag_entries.append(
+            f"[{module_id}]={tag}"
+        )
+
+    payload_table = ",".join(
+        payload_entries
     )
 
-    lua_key = ",".join(
-        str(value)
-        for value in key
+    seed_table = ",".join(
+        seed_entries
     )
 
-    parts.append(
-        f"local {n_key}={{{lua_key}}};"
+    length_table = ",".join(
+        length_entries
     )
 
-    parts.append(
-        f'local {n_b64}="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";'
+    tag_table = ",".join(
+        tag_entries
     )
 
-    parts.append(
-        f"""local function {n_decode64}({n_data})
-{n_data}={n_data}:gsub("[^"..{n_b64}.."=]","");
-return({n_data}:gsub(".",function({n_x})
-if {n_x}=="=" then return"" end;
-local {n_r}="";
-local {n_f}=({n_b64}:find({n_x},1,true)or 1)-1;
-for {n_i}=6,1,-1 do
-{n_r}={n_r}..({n_f}%2^{n_i}-{n_f}%2^({n_i}-1)>0 and"1"or"0");
-end;
-return {n_r};
-end):gsub("%d%d%d?%d?%d?%d?%d?%d?",function({n_x})
-if #{n_x}~=8 then return"" end;
-local {n_c}=0;
-for {n_i}=1,8 do
-if {n_x}:sub({n_i},{n_i})=="1" then {n_c}={n_c}+2^(8-{n_i});end;
-end;
-return string.char({n_c});
-end));
-end;"""
-    )
+    main_id = module_ids[
+        "Main.lua"
+    ]
 
-    parts.append(
-        f"""local function {n_decode}({n_data})
-local {n_raw}={n_decode64}({n_data});
-local {n_out}={{}};
-for {n_i}=1,#{n_raw} do
-local {n_key_index}=(({n_i}-1)%#{n_key})+1;
-{n_out}[{n_i}]=string.char(bit32.bxor({n_raw}:byte({n_i}),{n_key}[{n_key_index}]));
-end;
-return table.concat({n_out});
-end;"""
-    )
-
-    parts.append(
+    return (
+        f"local {n_payload}={{{payload_table}}};"
+        f"local {n_seed}={{{seed_table}}};"
+        f"local {n_length}={{{length_table}}};"
+        f"local {n_tag}={{{tag_table}}};"
         f"local {n_cache}={{}};"
-    )
-
-    parts.append(
-        f"""local function {n_load}({n_path})
-local {n_cached}={n_cache}[{n_path}];
-if {n_cached}~=nil then return {n_cached} end;
-local {n_source}={n_sources}[{n_path}];
-assert({n_source}~=nil,"modulo ausente");
-{n_source}={n_decode}({n_source});
-local {n_chunk},{n_err}=loadstring({n_source});
-assert({n_chunk},{n_err});
-local {n_ok},{n_result}=pcall({n_chunk});
-assert({n_ok},{n_result});
-assert({n_result}~=nil,"modulo retornou nil");
-{n_cache}[{n_path}]={n_result};
-return {n_result};
-end;"""
-    )
-
-    main_alias = aliases["Main.lua"]
-
-    parts.append(
-        f'local {n_main}={n_load}({json.dumps(main_alias)});'
-    )
-
-    parts.append(
-        f'assert(type({n_main})=="function","entrypoint invalido");'
-    )
-
-    parts.append(
+        f'local {n_alpha}="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";'
+        f"local function {n_b64}({n_data})"
+        f"{n_data}={n_data}:gsub(\"[^\"..{n_alpha}..\"=]\",\"\");"
+        f"return({n_data}:gsub(\".\",function({n_x})"
+        f"if {n_x}==\"=\" then return\"\" end;"
+        f"local {n_r}=\"\";"
+        f"local {n_f}=({n_alpha}:find({n_x},1,true)or 1)-1;"
+        f"for {n_i}=6,1,-1 do "
+        f"{n_r}={n_r}..({n_f}%2^{n_i}-{n_f}%2^({n_i}-1)>0 and\"1\"or\"0\");"
+        f"end;"
+        f"return {n_r};"
+        f"end):gsub(\"%d%d%d?%d?%d?%d?%d?%d?\",function({n_x})"
+        f"if #{n_x}~=8 then return\"\" end;"
+        f"local {n_c}=0;"
+        f"for {n_i}=1,8 do "
+        f"if {n_x}:sub({n_i},{n_i})==\"1\" then "
+        f"{n_c}={n_c}+2^(8-{n_i});"
+        f"end;"
+        f"end;"
+        f"return string.char({n_c});"
+        f"end));"
+        f"end;"
+        f"local function {n_stream}({n_state})"
+        f"{n_state}=bit32.bxor({n_state},bit32.lshift({n_state},13));"
+        f"{n_state}=bit32.bxor({n_state},bit32.rshift({n_state},17));"
+        f"{n_state}=bit32.bxor({n_state},bit32.lshift({n_state},5));"
+        f"return bit32.band({n_state},4294967295);"
+        f"end;"
+        f"local function {n_decode}({n_data},{n_state})"
+        f"local {n_raw}={n_b64}({n_data});"
+        f"local {n_out}={{}};"
+        f"for {n_i}=1,#{n_raw} do "
+        f"{n_state}={n_stream}({n_state});"
+        f"{n_out}[{n_i}]=string.char(bit32.bxor({n_raw}:byte({n_i}),bit32.band({n_state},255)));"
+        f"end;"
+        f"return table.concat({n_out});"
+        f"end;"
+        f"local function {n_check}({n_data})"
+        f"local {n_a}=1;"
+        f"local {n_b}=0;"
+        f"for {n_i}=1,#{n_data} do "
+        f"local {n_byte}={n_data}:byte({n_i});"
+        f"{n_a}=({n_a}+{n_byte})%65521;"
+        f"{n_b}=({n_b}+{n_a})%65521;"
+        f"end;"
+        f"return {n_b}*65536+{n_a};"
+        f"end;"
+        f"local function {n_load}({n_id})"
+        f"local {n_cached}={n_cache}[{n_id}];"
+        f"if {n_cached}~=nil then return {n_cached} end;"
+        f"local {n_source}={n_payload}[{n_id}];"
+        f"assert({n_source}~=nil,\"modulo ausente\");"
+        f"{n_source}={n_decode}({n_source},{n_seed}[{n_id}]);"
+        f"assert(#{n_source}=={n_length}[{n_id}],\"payload truncado\");"
+        f"local {n_actual}={n_check}({n_source});"
+        f"assert({n_actual}=={n_tag}[{n_id}],\"payload corrompido\");"
+        f"local {n_chunk},{n_err}=loadstring({n_source});"
+        f"assert({n_chunk},{n_err});"
+        f"local {n_ok},{n_result}=pcall({n_chunk});"
+        f"assert({n_ok},{n_result});"
+        f"assert({n_result}~=nil,\"modulo retornou nil\");"
+        f"{n_cache}[{n_id}]={n_result};"
+        f"return {n_result};"
+        f"end;"
+        f"local {n_main}={n_load}({main_id});"
+        f"assert(type({n_main})==\"function\",\"entrypoint invalido\");"
         f"return {n_main}({n_load})"
     )
 
-    return "".join(parts)
+
+def generate_bundle(
+    sources: dict[str, str],
+    build_id: str,
+    release: bool,
+) -> str:
+    if release:
+        return generate_release_bundle(
+            sources,
+            build_id,
+        )
+
+    return generate_dev_bundle(
+        sources,
+        build_id,
+    )
+
+
+def write_build_info(
+    sources: dict[str, str],
+    build_id: str,
+    release: bool,
+    bundle: str,
+) -> None:
+    info = {
+        "build": build_id,
+        "mode": (
+            "RELEASE-V4"
+            if release
+            else "DEV"
+        ),
+        "module_count": len(MODULES),
+        "bundle_sha256": hashlib.sha256(
+            bundle.encode("utf-8")
+        ).hexdigest(),
+        "sources": {
+            name: hashlib.sha256(
+                content.encode("utf-8")
+            ).hexdigest()
+            for name, content in sorted(
+                sources.items()
+            )
+        },
+    }
+
+    INFO_OUTPUT.write_text(
+        json.dumps(
+            info,
+            indent=2,
+            ensure_ascii=False,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def validate_bundle_text(
+    bundle: str,
+    release: bool,
+) -> None:
+    if not bundle.strip():
+        raise RuntimeError(
+            "Bundle gerado está vazio."
+        )
+
+    if release:
+        forbidden = [
+            "Modules/ESP.lua",
+            "Modules/DeadBodyChams.lua",
+            "Library.lua",
+            "Config.lua",
+            "__Decode",
+            "__L",
+        ]
+
+        leaks = [
+            value
+            for value in forbidden
+            if value in bundle
+        ]
+
+        if leaks:
+            raise RuntimeError(
+                "Vazamento estrutural na RELEASE: "
+                + ", ".join(leaks)
+            )
+
+    else:
+        if "Main.lua" not in bundle:
+            raise RuntimeError(
+                "Bundle DEV não contém o entrypoint."
+            )
 
 
 def build() -> str:
@@ -457,6 +655,11 @@ def build() -> str:
         release,
     )
 
+    validate_bundle_text(
+        bundle,
+        release,
+    )
+
     DIST.mkdir(
         parents=True,
         exist_ok=True,
@@ -468,13 +671,20 @@ def build() -> str:
         newline="\n",
     )
 
+    write_build_info(
+        sources,
+        build_id,
+        release,
+        bundle,
+    )
+
     size_kb = (
         OUTPUT.stat().st_size
         / 1024
     )
 
     mode = (
-        "RELEASE-V3"
+        "RELEASE-V4"
         if release
         else "DEV"
     )
@@ -488,6 +698,9 @@ def build() -> str:
     )
     print(
         f"[OK] {OUTPUT}"
+    )
+    print(
+        f"[INFO] {INFO_OUTPUT}"
     )
     print(
         f"[SIZE] {size_kb:.1f} KB"
@@ -517,7 +730,7 @@ def source_signature() -> str:
             )
 
     digest.update(
-        b"release-v3"
+        b"release-v4"
         if "--release" in sys.argv
         else b"dev"
     )
@@ -527,7 +740,7 @@ def source_signature() -> str:
 
 def watch() -> None:
     mode = (
-        "RELEASE-V3"
+        "RELEASE-V4"
         if "--release" in sys.argv
         else "DEV"
     )
