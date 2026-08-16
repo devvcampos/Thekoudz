@@ -3,24 +3,17 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import random
+import string
 import sys
 import time
 from pathlib import Path
 
 
-# ============================================================
-# PATHS
-# ============================================================
-
 ROOT = Path(__file__).resolve().parent.parent
 SRC = ROOT / "src"
 DIST = ROOT / "dist"
 OUTPUT = DIST / "Thekoudz.lua"
-
-
-# ============================================================
-# ARQUIVOS DA BUILD
-# ============================================================
 
 MODULES = [
     "Main.lua",
@@ -33,10 +26,6 @@ MODULES = [
     "addons/SaveManager.lua",
 ]
 
-
-# ============================================================
-# LUA LONG STRING
-# ============================================================
 
 def lua_long_string(text: str) -> str:
     for level in range(32):
@@ -59,10 +48,6 @@ def lua_long_string(text: str) -> str:
     )
 
 
-# ============================================================
-# SOURCES
-# ============================================================
-
 def read_sources() -> dict[str, str]:
     sources: dict[str, str] = {}
 
@@ -81,10 +66,6 @@ def read_sources() -> dict[str, str]:
     return sources
 
 
-# ============================================================
-# BUILD ID
-# ============================================================
-
 def calculate_build_id(
     sources: dict[str, str],
 ) -> str:
@@ -99,13 +80,91 @@ def calculate_build_id(
     return digest.hexdigest()[:12].upper()
 
 
-# ============================================================
-# RELEASE ENCODING
-# ============================================================
+def make_rng(build_id: str) -> random.Random:
+    seed = int(
+        hashlib.sha256(
+            ("v3:" + build_id).encode("utf-8")
+        ).hexdigest(),
+        16,
+    )
 
-def make_key(build_id: str) -> bytes:
+    return random.Random(seed)
+
+
+def random_identifier(
+    rng: random.Random,
+    used: set[str],
+    length: int = 12,
+) -> str:
+    alphabet_rest = string.ascii_letters + "_" + string.digits
+
+    while True:
+        value = (
+            "_"
+            + rng.choice(string.ascii_letters)
+            + "".join(
+                rng.choice(alphabet_rest)
+                for _ in range(length - 2)
+            )
+        )
+
+        if value not in used:
+            used.add(value)
+            return value
+
+
+def make_module_aliases(
+    build_id: str,
+) -> dict[str, str]:
+    aliases: dict[str, str] = {}
+
+    for index, name in enumerate(MODULES):
+        digest = hashlib.blake2s(
+            (
+                build_id
+                + "\0"
+                + str(index)
+                + "\0"
+                + name
+            ).encode("utf-8"),
+            digest_size=8,
+        ).hexdigest()
+
+        aliases[name] = digest
+
+    return aliases
+
+
+def rewrite_module_references(
+    sources: dict[str, str],
+    aliases: dict[str, str],
+) -> dict[str, str]:
+    rewritten: dict[str, str] = {}
+
+    for source_name, source in sources.items():
+        updated = source
+
+        for module_name, alias in aliases.items():
+            updated = updated.replace(
+                json.dumps(module_name),
+                json.dumps(alias),
+            )
+
+            updated = updated.replace(
+                "'" + module_name + "'",
+                "'" + alias + "'",
+            )
+
+        rewritten[source_name] = updated
+
+    return rewritten
+
+
+def make_key(
+    build_id: str,
+) -> bytes:
     digest = hashlib.sha256(
-        build_id.encode("utf-8")
+        ("payload:" + build_id).encode("utf-8")
     ).digest()
 
     return digest[:16]
@@ -127,176 +186,44 @@ def encode_source(
     ).decode("ascii")
 
 
-# ============================================================
-# BUNDLE
-# ============================================================
-
 def generate_bundle(
     sources: dict[str, str],
     build_id: str,
     release: bool,
 ) -> str:
-    parts: list[str] = []
-    key = make_key(build_id)
+    if not release:
+        parts: list[str] = []
 
-    mode = (
-        "RELEASE"
-        if release
-        else "DEV"
-    )
+        parts.append(
+            "-- AUTO-GENERATED FILE\n"
+            "-- DO NOT EDIT\n"
+            f"-- BUILD: {build_id}\n"
+            "-- MODE: DEV\n\n"
+        )
 
-    parts.append(
-        "-- AUTO-GENERATED FILE\n"
-        "-- DO NOT EDIT\n"
-        f"-- BUILD: {build_id}\n"
-        f"-- MODE: {mode}\n\n"
-    )
+        parts.append(
+            "local __S = {\n"
+        )
 
-    # --------------------------------------------------------
-    # SOURCES INTERNAS
-    # --------------------------------------------------------
-
-    parts.append(
-        "local __S = {\n"
-    )
-
-    for name in MODULES:
-        encoded_name = json.dumps(name)
-
-        if release:
-            encoded_source = encode_source(
-                sources[name],
-                key,
-            )
-
-            source_literal = json.dumps(
-                encoded_source
-            )
-
-        else:
+        for name in MODULES:
             source_literal = lua_long_string(
                 sources[name]
             )
 
-        parts.append(
-            "    ["
-            + encoded_name
-            + "] = "
-            + source_literal
-            + ",\n"
-        )
-
-    parts.append(
-        "}\n\n"
-    )
-
-    # --------------------------------------------------------
-    # DECODER DE RELEASE
-    # --------------------------------------------------------
-
-    if release:
-        lua_key = ", ".join(
-            str(value)
-            for value in key
-        )
-
-        parts.append(
-            f"""local __K = {{{lua_key}}}
-
-local __B64 =
-    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
-
-local function __D64(data)
-    data = data:gsub(
-        "[^" .. __B64 .. "=]",
-        ""
-    )
-
-    return (
-        data:gsub(".", function(x)
-            if x == "=" then
-                return ""
-            end
-
-            local r = ""
-            local f =
-                (__B64:find(x, 1, true) or 1)
-                - 1
-
-            for i = 6, 1, -1 do
-                r =
-                    r
-                    .. (
-                        f % 2 ^ i
-                        - f % 2 ^ (i - 1)
-                        > 0
-                        and "1"
-                        or "0"
-                    )
-            end
-
-            return r
-        end)
-        :gsub(
-            "%d%d%d?%d?%d?%d?%d?%d?",
-            function(x)
-                if #x ~= 8 then
-                    return ""
-                end
-
-                local c = 0
-
-                for i = 1, 8 do
-                    if x:sub(i, i) == "1" then
-                        c =
-                            c
-                            + 2 ^ (8 - i)
-                    end
-                end
-
-                return string.char(c)
-            end
-        )
-    )
-end
-
-local function __Decode(data)
-    local raw =
-        __D64(data)
-
-    local out = {{}}
-
-    for i = 1, #raw do
-        local keyIndex =
-            ((i - 1) % #__K)
-            + 1
-
-        out[i] =
-            string.char(
-                bit32.bxor(
-                    raw:byte(i),
-                    __K[keyIndex]
-                )
+            parts.append(
+                "    ["
+                + json.dumps(name)
+                + "] = "
+                + source_literal
+                + ",\n"
             )
-    end
 
-    return table.concat(out)
-end
-
-"""
+        parts.append(
+            "}\n\n"
         )
 
-        source_expression = "__Decode(__S[path])"
-
-    else:
-        source_expression = "__S[path]"
-
-    # --------------------------------------------------------
-    # LOADER INTERNO
-    # --------------------------------------------------------
-
-    parts.append(
-        f"""local __C = {{}}
+        parts.append(
+            """local __C = {}
 
 local function __L(path)
     local cached = __C[path]
@@ -305,8 +232,7 @@ local function __L(path)
         return cached
     end
 
-    local source =
-        {source_expression}
+    local source = __S[path]
 
     assert(
         source ~= nil,
@@ -314,8 +240,7 @@ local function __L(path)
             .. tostring(path)
     )
 
-    local chunk, err =
-        loadstring(source)
+    local chunk, err = loadstring(source)
 
     assert(
         chunk,
@@ -325,8 +250,7 @@ local function __L(path)
             .. tostring(err)
     )
 
-    local ok, result =
-        pcall(chunk)
+    local ok, result = pcall(chunk)
 
     assert(
         ok,
@@ -347,16 +271,7 @@ local function __L(path)
     return result
 end
 
-"""
-    )
-
-    # --------------------------------------------------------
-    # ENTRYPOINT
-    # --------------------------------------------------------
-
-    parts.append(
-        """local __Main =
-    __L("Main.lua")
+local __Main = __L("Main.lua")
 
 assert(
     type(__Main) == "function",
@@ -365,14 +280,167 @@ assert(
 
 return __Main(__L)
 """
+        )
+
+        return "".join(parts)
+
+    aliases = make_module_aliases(
+        build_id
+    )
+
+    rewritten_sources = rewrite_module_references(
+        sources,
+        aliases,
+    )
+
+    rng = make_rng(
+        build_id
+    )
+
+    used: set[str] = set()
+
+    n_sources = random_identifier(rng, used)
+    n_cache = random_identifier(rng, used)
+    n_key = random_identifier(rng, used)
+    n_b64 = random_identifier(rng, used)
+    n_decode64 = random_identifier(rng, used)
+    n_decode = random_identifier(rng, used)
+    n_load = random_identifier(rng, used)
+    n_path = random_identifier(rng, used)
+    n_cached = random_identifier(rng, used)
+    n_source = random_identifier(rng, used)
+    n_chunk = random_identifier(rng, used)
+    n_err = random_identifier(rng, used)
+    n_ok = random_identifier(rng, used)
+    n_result = random_identifier(rng, used)
+    n_data = random_identifier(rng, used)
+    n_x = random_identifier(rng, used)
+    n_r = random_identifier(rng, used)
+    n_f = random_identifier(rng, used)
+    n_i = random_identifier(rng, used)
+    n_c = random_identifier(rng, used)
+    n_raw = random_identifier(rng, used)
+    n_out = random_identifier(rng, used)
+    n_key_index = random_identifier(rng, used)
+    n_main = random_identifier(rng, used)
+
+    key = make_key(
+        build_id
+    )
+
+    module_order = list(MODULES)
+    rng.shuffle(module_order)
+
+    parts: list[str] = []
+
+    parts.append(
+        f"local {n_sources}={{"
+    )
+
+    for name in module_order:
+        alias = aliases[name]
+
+        encoded_source = encode_source(
+            rewritten_sources[name],
+            key,
+        )
+
+        parts.append(
+            "["
+            + json.dumps(alias)
+            + "]="
+            + json.dumps(encoded_source)
+            + ","
+        )
+
+    parts.append(
+        "};"
+    )
+
+    lua_key = ",".join(
+        str(value)
+        for value in key
+    )
+
+    parts.append(
+        f"local {n_key}={{{lua_key}}};"
+    )
+
+    parts.append(
+        f'local {n_b64}="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";'
+    )
+
+    parts.append(
+        f"""local function {n_decode64}({n_data})
+{n_data}={n_data}:gsub("[^"..{n_b64}.."=]","");
+return({n_data}:gsub(".",function({n_x})
+if {n_x}=="=" then return"" end;
+local {n_r}="";
+local {n_f}=({n_b64}:find({n_x},1,true)or 1)-1;
+for {n_i}=6,1,-1 do
+{n_r}={n_r}..({n_f}%2^{n_i}-{n_f}%2^({n_i}-1)>0 and"1"or"0");
+end;
+return {n_r};
+end):gsub("%d%d%d?%d?%d?%d?%d?%d?",function({n_x})
+if #{n_x}~=8 then return"" end;
+local {n_c}=0;
+for {n_i}=1,8 do
+if {n_x}:sub({n_i},{n_i})=="1" then {n_c}={n_c}+2^(8-{n_i});end;
+end;
+return string.char({n_c});
+end));
+end;"""
+    )
+
+    parts.append(
+        f"""local function {n_decode}({n_data})
+local {n_raw}={n_decode64}({n_data});
+local {n_out}={{}};
+for {n_i}=1,#{n_raw} do
+local {n_key_index}=(({n_i}-1)%#{n_key})+1;
+{n_out}[{n_i}]=string.char(bit32.bxor({n_raw}:byte({n_i}),{n_key}[{n_key_index}]));
+end;
+return table.concat({n_out});
+end;"""
+    )
+
+    parts.append(
+        f"local {n_cache}={{}};"
+    )
+
+    parts.append(
+        f"""local function {n_load}({n_path})
+local {n_cached}={n_cache}[{n_path}];
+if {n_cached}~=nil then return {n_cached} end;
+local {n_source}={n_sources}[{n_path}];
+assert({n_source}~=nil,"modulo ausente");
+{n_source}={n_decode}({n_source});
+local {n_chunk},{n_err}=loadstring({n_source});
+assert({n_chunk},{n_err});
+local {n_ok},{n_result}=pcall({n_chunk});
+assert({n_ok},{n_result});
+assert({n_result}~=nil,"modulo retornou nil");
+{n_cache}[{n_path}]={n_result};
+return {n_result};
+end;"""
+    )
+
+    main_alias = aliases["Main.lua"]
+
+    parts.append(
+        f'local {n_main}={n_load}({json.dumps(main_alias)});'
+    )
+
+    parts.append(
+        f'assert(type({n_main})=="function","entrypoint invalido");'
+    )
+
+    parts.append(
+        f"return {n_main}({n_load})"
     )
 
     return "".join(parts)
 
-
-# ============================================================
-# BUILD
-# ============================================================
 
 def build() -> str:
     release = "--release" in sys.argv
@@ -406,7 +474,7 @@ def build() -> str:
     )
 
     mode = (
-        "RELEASE"
+        "RELEASE-V3"
         if release
         else "DEV"
     )
@@ -427,10 +495,6 @@ def build() -> str:
 
     return build_id
 
-
-# ============================================================
-# ASSINATURA DAS SOURCES
-# ============================================================
 
 def source_signature() -> str:
     digest = hashlib.sha256()
@@ -453,7 +517,7 @@ def source_signature() -> str:
             )
 
     digest.update(
-        b"release"
+        b"release-v3"
         if "--release" in sys.argv
         else b"dev"
     )
@@ -461,13 +525,9 @@ def source_signature() -> str:
     return digest.hexdigest()
 
 
-# ============================================================
-# WATCH
-# ============================================================
-
 def watch() -> None:
     mode = (
-        "RELEASE"
+        "RELEASE-V3"
         if "--release" in sys.argv
         else "DEV"
     )
@@ -502,22 +562,15 @@ def watch() -> None:
 
         except KeyboardInterrupt:
             print()
-
             print(
                 "[WATCH] Encerrado."
             )
-
             return
 
-
-# ============================================================
-# MAIN
-# ============================================================
 
 def main() -> None:
     if "--watch" in sys.argv:
         watch()
-
     else:
         build()
 
