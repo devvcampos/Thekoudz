@@ -25,7 +25,7 @@ return function(LoadModule)
     -- 2. CARREGAR MÓDULOS
     ---------------------------------------------------------
 
- local ESPModule =
+local ESPModule =
     LoadModule("Modules/ESP.lua")
 
 local DeadBodyModule =

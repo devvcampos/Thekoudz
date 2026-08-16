@@ -1,14 +1,14 @@
 {
-  "build": "A307BF78E55A",
+  "build": "0031DEA28F58",
   "mode": "RELEASE-V5",
   "module_count": 10,
-  "bundle_sha256": "f4c41ed90470fc076cba15f037353f8d8d244523b0ea5bc3fd450cccf2050fd8",
+  "bundle_sha256": "c5c0f199531a5a4558d2d616cd2a6d61f5ff31fd3d5d962f40208a056930d141",
   "sources": {
     "Config.lua": "8aec124477bb5737db5f9a35c720fde077f2e60a959d083950eeace43ae083cd",
     "Library.lua": "9602fd8ac3492b039961c4c68a8b3922f8849d9f65999482e5c80eaf6e0cca78",
-    "Main.lua": "c69a72bce5d6482cf5854303fe870c9b1f6f1b16905928327556e7a1ceefb87b",
+    "Main.lua": "10211976a8c4052a7beaf175f39d6bf6e83d8072f0e42d7099f35e0badd3c581",
     "Modules/AimProvider.lua": "5d76fa85ef7a82905c0db58eaec46702d283178abcb2b99305045aee2e2028cf",
-    "Modules/Aimbot.lua": "b2e21685d420d82224447387c45e712f611105c1f1256d15033efc3dd2c06dd4",
+    "Modules/Aimbot.lua": "d0328f38a9c146b1bb6519e9b6cb05e87a077afe6404429a1ef4ddb6d54d3c97",
     "Modules/DeadBodyChams.lua": "531ec0d9a4374581164cbb4d9e9ca6ddeb18d17ab125261e49feec317bc26818",
     "Modules/ESP.lua": "6e954340ec07e2ba7cfcab01e8e028b0c0121b04d719b5dc8e94066bf3e17e3d",
     "Ui.lua": "ee0b1e47f0126121c04e187442fd385f424a61c6d1074d02cc4e9a84b0216d08",

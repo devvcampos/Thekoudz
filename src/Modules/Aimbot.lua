@@ -1,23 +1,37 @@
 local Aimbot = {}
 
-function Aimbot.Init(Config)
-    local Camera =
-    workspace.CurrentCamera
-
-local Origin =
-    Camera.CFrame.Position
-
-local NormalDirection =
-    Camera.CFrame.LookVector
-
-
-local Direction,
-    Player,
-    Part =
-    AimProvider.ResolveDirection(
-        Origin,
-        NormalDirection
+function Aimbot.Init(
+    Config,
+    AimProvider
+)
+    assert(
+        type(AimProvider) == "table",
+        "AimProvider não recebido pelo Aimbot"
     )
+
+    assert(
+        type(AimProvider.ResolveDirection)
+            == "function",
+        "AimProvider.ResolveDirection não existe"
+    )
+
+    local Camera =
+        workspace.CurrentCamera
+
+    local Origin =
+        Camera.CFrame.Position
+
+    local NormalDirection =
+        Camera.CFrame.LookVector
+
+    local Direction,
+        Player,
+        Part =
+        AimProvider.ResolveDirection(
+            Origin,
+            NormalDirection
+        )
+
     local cloneref = (cloneref or clonereference or function(i) return i end)
     local Players = cloneref(game:GetService("Players"))
     local RunService = cloneref(game:GetService("RunService"))
