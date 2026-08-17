@@ -32,15 +32,25 @@ local Config = {
         ShowLabel = true,
     },
 
-    Aimbot = {
-        Enabled = false,
+Aimbot = {
+    Enabled = false,
 
-        FOV = 50,
-        Smoothness = 12,
+    TargetPart = "Head",
 
-        AutoFire = false,
-        FireDelay = 0.15,
-    },
+    FOV = 50,
+
+    MaxDistance = 2000,
+
+    VisibilityCheck = true,
+
+    ScanInterval = 0.10,
+
+    Smoothness = 12,
+
+    AutoFire = false,
+
+    FireDelay = 0.15,
+  },
 }
 
 return Config
