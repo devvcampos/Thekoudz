@@ -1,11 +1,11 @@
 return function(LoadModule)
     assert(
         type(LoadModule) == "function",
-        "LoadModule inválido"
+        "LoadModule invalido"
     )
 
     ---------------------------------------------------------
-    -- 1. CARREGAR DEPENDÊNCIAS
+    -- DEPENDENCIAS
     ---------------------------------------------------------
 
     local Config =
@@ -22,74 +22,81 @@ return function(LoadModule)
 
 
     ---------------------------------------------------------
-    -- 2. CARREGAR MÓDULOS
+    -- MODULOS
     ---------------------------------------------------------
 
-local ESPModule =
-    LoadModule("Modules/ESP.lua")
+    local ESPModule =
+        LoadModule("Modules/ESP.lua")
 
-local DeadBodyModule =
-    LoadModule("Modules/DeadBodyChams.lua")
+    local DeadBodyModule =
+        LoadModule("Modules/DeadBodyChams.lua")
 
-local AimbotModule =
-    LoadModule("Modules/Aimbot.lua")
+    local AimProviderModule =
+        LoadModule("Modules/AimProvider.lua")
 
-local AimProviderModule =
-    LoadModule("Modules/AimProvider.lua")
+    local AimbotModule =
+        LoadModule("Modules/Aimbot.lua")
 
-local UI =
-    LoadModule("Ui.lua")
-
-
-local ESP =
-    ESPModule.Init(Config)
-
-local DeadBody =
-    DeadBodyModule.Init(Config)
-
-local AimProvider =
-    AimProviderModule.Init(Config)
-
-local Aimbot =
-    AimbotModule.Init(
-        Config,
-        AimProvider
-    )
+    local UI =
+        LoadModule("Ui.lua")
 
 
     ---------------------------------------------------------
-    -- 4. CONTEXT
+    -- INIT
+    ---------------------------------------------------------
+
+    local ESP =
+        ESPModule.Init(Config)
+
+    local DeadBody =
+        DeadBodyModule.Init(Config)
+
+    local AimProvider =
+        AimProviderModule.Init(Config)
+
+    local Aimbot =
+        AimbotModule.Init(
+            Config,
+            AimProvider
+        )
+
+
+    ---------------------------------------------------------
+    -- CONTEXT
     ---------------------------------------------------------
 
     local Context = {
         Library = Library,
         Config = Config,
 
-        -- ESP
         ToggleESP =
             ESP.Toggle,
 
         DestroyESP =
             ESP.Destroy,
 
-        -- DEAD BODY
         ToggleDeadBodyChams =
             DeadBody.Toggle,
 
         DestroyDeadBodyChams =
             DeadBody.Destroy,
 
-        -- AIMBOT
         ToggleAimbot =
             Aimbot.Toggle,
 
         DestroyAimbot =
             Aimbot.Destroy,
+
+        GetAimTarget =
+            Aimbot.GetTarget,
+
+        GetAimDirection =
+            Aimbot.GetDirection,
     }
 
 
     ---------------------------------------------------------
-    -- 5. UI
+    -- UI
     ---------------------------------------------------------
 
     local Window,
@@ -98,7 +105,7 @@ local Aimbot =
 
 
     ---------------------------------------------------------
-    -- 6. ADDONS
+    -- ADDONS
     ---------------------------------------------------------
 
     ThemeManager:SetLibrary(
@@ -127,7 +134,7 @@ local Aimbot =
 
 
     ---------------------------------------------------------
-    -- 7. RESULTADO
+    -- RETURN
     ---------------------------------------------------------
 
     return {
@@ -137,7 +144,6 @@ local Aimbot =
         Config = Config,
 
         ESP = ESP,
-
         DeadBody = DeadBody,
 
         AimProvider =
