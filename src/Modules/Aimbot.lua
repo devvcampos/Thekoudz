@@ -4,10 +4,6 @@ function Aimbot.Init(
     Config,
     AimProvider
 )
-    ---------------------------------------------------------
-    -- VALIDACAO
-    ---------------------------------------------------------
-
     assert(
         type(Config) == "table",
         "Config invalido"
@@ -24,41 +20,31 @@ function Aimbot.Init(
     )
 
     assert(
-        type(AimProvider.ResolveDirection)
-            == "function",
-        "AimProvider.ResolveDirection inexistente"
+        type(AimProvider.ResolveDirection) == "function",
+        "ResolveDirection inexistente"
     )
 
 
-    ---------------------------------------------------------
-    -- SERVICES
-    ---------------------------------------------------------
-
     local RunService =
-        game:GetService(
-            "RunService"
-        )
+        game:GetService("RunService")
 
     local Workspace =
-        game:GetService(
-            "Workspace"
-        )
+        game:GetService("Workspace")
 
-
-    ---------------------------------------------------------
-    -- CONFIG
-    ---------------------------------------------------------
 
     local Settings =
         Config.Aimbot
 
 
-    ---------------------------------------------------------
-    -- STATE
-    ---------------------------------------------------------
-
     local Destroyed =
         false
+
+    local Connection =
+        nil
+
+    local Accumulator =
+        0
+
 
     local CurrentPlayer =
         nil
@@ -69,55 +55,8 @@ function Aimbot.Init(
     local CurrentDirection =
         nil
 
-    local CurrentAngle =
-        nil
 
-    local Accumulator =
-        0
-
-    local Connection =
-        nil
-
-
-    ---------------------------------------------------------
-    -- ANGLE
-    ---------------------------------------------------------
-
-    local function GetAngle(
-        A,
-        B
-    )
-        if
-            A.Magnitude <= 0.000001
-            or B.Magnitude <= 0.000001
-        then
-            return math.huge
-        end
-
-
-        local Dot =
-            math.clamp(
-                A.Unit:Dot(
-                    B.Unit
-                ),
-                -1,
-                1
-            )
-
-
-        return math.deg(
-            math.acos(
-                Dot
-            )
-        )
-    end
-
-
-    ---------------------------------------------------------
-    -- CLEAR
-    ---------------------------------------------------------
-
-    local function ClearTarget()
+    local function Clear()
         CurrentPlayer =
             nil
 
@@ -126,23 +65,15 @@ function Aimbot.Init(
 
         CurrentDirection =
             nil
-
-        CurrentAngle =
-            nil
     end
 
-
-    ---------------------------------------------------------
-    -- SCAN
-    ---------------------------------------------------------
 
     local function Scan()
         if
             Destroyed
             or not Settings.Enabled
         then
-            ClearTarget()
-
+            Clear()
             return
         end
 
@@ -150,17 +81,14 @@ function Aimbot.Init(
         local Camera =
             Workspace.CurrentCamera
 
-
         if not Camera then
-            ClearTarget()
-
+            Clear()
             return
         end
 
 
         local Origin =
             Camera.CFrame.Position
-
 
         local NormalDirection =
             Camera.CFrame.LookVector
@@ -175,56 +103,42 @@ function Aimbot.Init(
             )
 
 
-        if
-            not Player
-            or not Part
-        then
-            ClearTarget()
-
-            return
-        end
-
-
-        if
-            not Part.Parent
-        then
-            ClearTarget()
-
-            return
-        end
-
+        CurrentDirection =
+            Direction
 
         CurrentPlayer =
             Player
-
 
         CurrentPart =
             Part
 
 
-        CurrentDirection =
-            Direction
-
-
-        CurrentAngle =
-            GetAngle(
-                NormalDirection,
-                Direction
+        if Player and Part then
+            print(
+                "[AIM TARGET]",
+                Player.Name,
+                Part.Name,
+                "distance:",
+                math.floor(
+                    (
+                        Part.Position
+                        - Origin
+                    ).Magnitude
+                )
             )
+        else
+            print(
+                "[AIM TARGET] nenhum"
+            )
+        end
     end
 
 
-    ---------------------------------------------------------
-    -- UPDATE
-    ---------------------------------------------------------
-
     local function Update(dt)
-        if Destroyed then
-            return
-        end
-
-
-        if not Settings.Enabled then
+        if
+            Destroyed
+            or not Settings.Enabled
+        then
             return
         end
 
@@ -236,7 +150,7 @@ function Aimbot.Init(
             tonumber(
                 Settings.ScanInterval
             )
-            or 0.10
+            or 0.25
 
 
         if
@@ -250,14 +164,9 @@ function Aimbot.Init(
         Accumulator =
             0
 
-
         Scan()
     end
 
-
-    ---------------------------------------------------------
-    -- TOGGLE
-    ---------------------------------------------------------
 
     local function Toggle(
         State
@@ -271,21 +180,21 @@ function Aimbot.Init(
             State == true
 
 
-        Accumulator =
-            0
-
-
         if Settings.Enabled then
+            print(
+                "[AIM] ENABLED"
+            )
+
             Scan()
         else
-            ClearTarget()
+            print(
+                "[AIM] DISABLED"
+            )
+
+            Clear()
         end
     end
 
-
-    ---------------------------------------------------------
-    -- GETTERS
-    ---------------------------------------------------------
 
     local function GetTarget()
         return
@@ -299,16 +208,6 @@ function Aimbot.Init(
             CurrentDirection
     end
 
-
-    local function GetAngleCurrent()
-        return
-            CurrentAngle
-    end
-
-
-    ---------------------------------------------------------
-    -- DESTROY
-    ---------------------------------------------------------
 
     local function Destroy()
         if Destroyed then
@@ -332,13 +231,9 @@ function Aimbot.Init(
         end
 
 
-        ClearTarget()
+        Clear()
     end
 
-
-    ---------------------------------------------------------
-    -- CONNECTION
-    ---------------------------------------------------------
 
     Connection =
         RunService.Heartbeat:
@@ -347,10 +242,6 @@ function Aimbot.Init(
             )
 
 
-    ---------------------------------------------------------
-    -- API
-    ---------------------------------------------------------
-
     return {
         Toggle =
             Toggle,
@@ -358,18 +249,16 @@ function Aimbot.Init(
         Destroy =
             Destroy,
 
+        Scan =
+            Scan,
+
         GetTarget =
             GetTarget,
 
         GetDirection =
             GetDirection,
-
-        GetAngle =
-            GetAngleCurrent,
-
-        Scan =
-            Scan,
     }
 end
+
 
 return Aimbot

@@ -43,14 +43,14 @@ Aimbot = {
 
     VisibilityCheck = true,
 
-    ScanInterval = 0.10,
+    ScanInterval = 0.25,
 
     Smoothness = 12,
 
     AutoFire = false,
 
     FireDelay = 0.15,
-  },
+},
 }
 
 return Config
