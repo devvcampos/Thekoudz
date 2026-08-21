@@ -456,127 +456,179 @@ end
             -- CÁLCULO DA BOX
             -- =============================================
 
-            local TopPos, TopVis =
-                Camera:WorldToViewportPoint(
-                    Head.Position + Vector3.new(0, 0.5, 0)
+local function GetCharacterScreenBounds(Character, Camera)
+    local BoundingCFrame, BoundingSize =
+        Character:GetBoundingBox()
+
+    local Half =
+        BoundingSize / 2
+
+    local Corners = {
+        Vector3.new(-Half.X, -Half.Y, -Half.Z),
+        Vector3.new(-Half.X, -Half.Y,  Half.Z),
+        Vector3.new(-Half.X,  Half.Y, -Half.Z),
+        Vector3.new(-Half.X,  Half.Y,  Half.Z),
+
+        Vector3.new( Half.X, -Half.Y, -Half.Z),
+        Vector3.new( Half.X, -Half.Y,  Half.Z),
+        Vector3.new( Half.X,  Half.Y, -Half.Z),
+        Vector3.new( Half.X,  Half.Y,  Half.Z),
+    }
+
+    local MinX = math.huge
+    local MinY = math.huge
+
+    local MaxX = -math.huge
+    local MaxY = -math.huge
+
+    local HasVisiblePoint = false
+
+    for _, Offset in ipairs(Corners) do
+        local WorldPosition =
+            BoundingCFrame:
+                PointToWorldSpace(
+                    Offset
                 )
 
-            local BotPos, BotVis =
-                Camera:WorldToViewportPoint(
-                    Root.Position - Vector3.new(0, 3, 0)
+        local ScreenPosition =
+            Camera:
+                WorldToViewportPoint(
+                    WorldPosition
                 )
 
-            local CenterPos, CenterVis =
-                Camera:WorldToViewportPoint(Root.Position)
+        if ScreenPosition.Z > 0 then
+            HasVisiblePoint = true
 
-            -- Fora da renderização da câmera:
-            -- apenas esconde, NÃO destrói.
-            if not TopVis or not BotVis or not CenterVis then
-                if ESP_Drawings[plr] then
-                    if UseDrawing and UseSquare then
-                        if ESP_Drawings[plr].Box then
-                            ESP_Drawings[plr].Box.Visible = false
-                        end
+            MinX =
+                math.min(
+                    MinX,
+                    ScreenPosition.X
+                )
 
-                        if ESP_Drawings[plr].HealthText then
-                            ESP_Drawings[plr].HealthText.Visible = false
-                        end
+            MinY =
+                math.min(
+                    MinY,
+                    ScreenPosition.Y
+                )
 
-                        if ESP_Drawings[plr].NameText then
-                            ESP_Drawings[plr].NameText.Visible = false
-                        end
+            MaxX =
+                math.max(
+                    MaxX,
+                    ScreenPosition.X
+                )
 
-                        if ESP_Drawings[plr].DistText then
-                            ESP_Drawings[plr].DistText.Visible = false
-                        end
-                    else
-                        if ESP_Drawings[plr].Container then
-                            ESP_Drawings[plr].Container.Enabled = false
-                        end
-                    end
-                end
+            MaxY =
+                math.max(
+                    MaxY,
+                    ScreenPosition.Y
+                )
+        end
+    end
 
-                continue
-            end
+    if not HasVisiblePoint then
+        return nil
+    end
 
-            -- =============================================
--- VISIBILITY CHECK COM CACHE
--- =============================================
+    return {
+        X = MinX,
+        Y = MinY,
 
-local TargetVisible = false
+        Width =
+            MaxX - MinX,
 
-if ESPConfig.VisibilityCheck then
-    TargetVisible =
-        GetCachedVisibility(
-            plr,
-            LocalPlr,
-            plr.Character,
-            Head,
-            Root
-        )
+        Height =
+            MaxY - MinY,
+
+        CenterX =
+            (MinX + MaxX) / 2,
+
+        CenterY =
+            (MinY + MaxY) / 2,
+    }
 end
-
-local Height =
-    math.abs(
-        BotPos.Y
-        - TopPos.Y
-    )
-
-local Width =
-    Height * 0.6
-
-local X =
-    CenterPos.X
-    - (Width / 2)
-
-local Y =
-    TopPos.Y
 
             -- =============================================
             -- CRIA OS DESENHOS
             -- =============================================
 
-            if not ESP_Drawings[plr] then
+if UseDrawing and UseSquare then
 
-                if UseDrawing and UseSquare then
+    ---------------------------------------------------------
+    -- BOX
+    ---------------------------------------------------------
 
-                    local data = {
-                        Box = Drawing.new(squareStr),
-                        HealthText = Drawing.new(textStr),
-                        NameText = Drawing.new(textStr),
-                        DistText = Drawing.new(textStr)
-                    }
+    data.Box.Position =
+        Vector2.new(
+            X,
+            Y
+        )
 
-                    -- BOX
-                    data.Box.Thickness = 1
-                    data.Box.Filled = false
-                    data.Box.Color = ESPConfig.BoxColor
-                    data.Box.Visible = false
+    data.Box.Size =
+        Vector2.new(
+            Width,
+            Height
+        )
 
-                    -- HEALTH
-                    data.HealthText.Size = 13
-                    data.HealthText.Center = true
-                    data.HealthText.Outline = true
-                    data.HealthText.Color = Color3.new(1, 1, 1)
-                    data.HealthText.Visible = false
+    data.Box.Color =
+        ESPConfig.BoxColor
 
-                    -- NAME
-                    data.NameText.Size = 14
-                    data.NameText.Center = true
-                    data.NameText.Outline = true
-                    data.NameText.Color = Color3.new(1, 1, 1)
-                    data.NameText.Visible = false
+    data.Box.Visible =
+        ESPConfig.DrawBox
 
-                    -- DISTANCE
-                    data.DistText.Size = 12
-                    data.DistText.Center = true
-                    data.DistText.Outline = true
-                    data.DistText.Color = Color3.new(1, 1, 1)
-                    data.DistText.Visible = false
 
-                    ESP_Drawings[plr] = data
+    ---------------------------------------------------------
+    -- NOME
+    ---------------------------------------------------------
 
-                else
+    data.NameText.Position =
+        Vector2.new(
+            CenterX,
+            Y - 18
+        )
+
+    data.NameText.Visible =
+        ESPConfig.DrawName
+
+    data.NameText.Text =
+        plr.Name
+
+
+    ---------------------------------------------------------
+    -- DISTANCIA
+    ---------------------------------------------------------
+
+    data.DistText.Position =
+        Vector2.new(
+            CenterX,
+            Y + Height + 5
+        )
+
+    data.DistText.Visible =
+        ESPConfig.DrawDistance
+
+    data.DistText.Text =
+        Distance .. " M"
+
+
+    ---------------------------------------------------------
+    -- VIDA
+    ---------------------------------------------------------
+
+    data.HealthText.Position =
+        Vector2.new(
+            X - 5,
+            Y
+        )
+
+    data.HealthText.Visible =
+        ESPConfig.DrawHealth
+
+    data.HealthText.Text =
+        string.format(
+            "%d/%d",
+            Humanoid.Health,
+            Humanoid.MaxHealth
+        )
 
                     -- =============================================
                     -- FALLBACK GUI
