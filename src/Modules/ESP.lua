@@ -199,15 +199,24 @@ function ESP.Init(Config)
         end
 
         if not hasVisiblePoint then
-            return nil
-        end
+    warn("[ESP BOUNDS] nenhum ponto visivel")
+    return nil
+end
 
         local width = maxX - minX
         local height = maxY - minY
 
         if width <= 1 or height <= 1 then
-            return nil
-        end
+    warn(
+        "[ESP BOUNDS] box invalida",
+        "width:",
+        width,
+        "height:",
+        height
+    )
+
+    return nil
+end
 
         return {
             X = minX,

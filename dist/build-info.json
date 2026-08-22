@@ -1,8 +1,8 @@
 {
-  "build": "3920AB824942",
+  "build": "3B2843AEB7A1",
   "mode": "RELEASE-V5",
   "module_count": 10,
-  "bundle_sha256": "422105ef45a9d4ad80c9a9fccbd2df93813ae3b5534f674f57ac29f564e54eac",
+  "bundle_sha256": "970df9c263b0b2aa550f699050a4103262b4a799ca5f5a0e4fc8f5372c26cd3c",
   "sources": {
     "Config.lua": "6d03fd3a238e2df8411f8a87ad790c539e8cbb61d49c4971d235d3b7be644453",
     "Library.lua": "9602fd8ac3492b039961c4c68a8b3922f8849d9f65999482e5c80eaf6e0cca78",
@@ -10,7 +10,7 @@
     "Modules/AimProvider.lua": "5d76fa85ef7a82905c0db58eaec46702d283178abcb2b99305045aee2e2028cf",
     "Modules/Aimbot.lua": "9b16bae8e0a50ae90dd3a28aee89298f829bd575df19f0a89e4a352af7d24bb5",
     "Modules/DeadBodyChams.lua": "531ec0d9a4374581164cbb4d9e9ca6ddeb18d17ab125261e49feec317bc26818",
-    "Modules/ESP.lua": "7249736dfcc98d892daec0c5a86a1aa5e5b3503e186617cf9331797405168ba9",
+    "Modules/ESP.lua": "2eb2808420d8e88d0d6b0b6bc8d588fcc6d218bd1498918c7c8f6e1703600c08",
     "Ui.lua": "ee0b1e47f0126121c04e187442fd385f424a61c6d1074d02cc4e9a84b0216d08",
     "addons/SaveManager.lua": "dd40ab7adc7b1d7642ca1c35628b0a7de7bc379ee4ffeb118a7f5b3861fb4525",
     "addons/ThemeManager.lua": "ce8ebabda6fd463926ad1d4666baafdcdc6fe8217c81b8161ef80ad4ff46a283"
