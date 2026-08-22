@@ -1,1057 +1,933 @@
 -- Thekoudz/Modules/ESP.lua
 -- =============================================
--- ESP NATIVO
--- ScreenGui + Frame + UIStroke
+-- MÓDULO ESP
 -- =============================================
 
 local ESP = {}
 
 function ESP.Init(Config)
+    -- Função de ofuscação
+    local function decode(t)
+        local s = ""
+        for _, c in ipairs(t) do
+            s = s .. string.char(c)
+        end
+        return s
+    end
 
-    ---------------------------------------------------------
-    -- SERVICES
-    ---------------------------------------------------------
+    -- Strings ofuscadas
+    local drawingStr = decode({68,114,97,119,105,110,103})
+    local squareStr = decode({83,113,117,97,114,101})
+    local textStr = decode({84,101,120,116})
+    local runServiceStr = decode({82,117,110,83,101,114,118,105,99,101})
+    local guiNameStr = decode({
+        83,121,115,116,101,109,95,77,101,116,114,105,99,115,95,85,73
+    })
+
+    _G.MaxESP_Dist = 150
+
+    -- Config compartilhada com a UI
+    local ESPConfig = Config.ESP
+
+    -- Verificação do Drawing
+    local UseDrawing = pcall(function()
+        local test = Drawing.new(textStr)
+        test.Visible = false
+        test:Remove()
+    end)
+
+    local UseSquare = pcall(function()
+        local test = Drawing.new(squareStr)
+        test.Visible = false
+        test:Remove()
+    end)
+
+    local ESP_Drawings = {}
+
+    -- =============================================
+-- CACHE DE VISIBILIDADE / RAYCAST
+-- =============================================
+
+local VisibilityCache =
+    setmetatable({}, {
+        __mode = "k"
+    })
+
+local VisibilityParams =
+    RaycastParams.new()
+
+VisibilityParams.FilterType =
+    Enum.RaycastFilterType.Exclude
+
+VisibilityParams.IgnoreWater =
+    true
+
+local LastLocalCharacter = nil
+
+-- =============================================
+-- INTERVALO DE VISIBILIDADE COM JITTER
+-- =============================================
+
+local function GetVisibilityInterval(plr)
+    local Base =
+        tonumber(
+            ESPConfig.VisibilityInterval
+        )
+        or 0.10
+
+    local Jitter =
+        tonumber(
+            ESPConfig.VisibilityJitter
+        )
+        or 0.025
+
+    Jitter =
+        math.max(
+            Jitter,
+            0
+        )
+
+    local UserId =
+        tonumber(plr.UserId)
+        or 0
+
+    -- Fase estável por jogador
+    local Phase =
+        (math.abs(UserId) % 997)
+        / 996
+
+    -- Converte 0..1 para -1..1
+    local Offset =
+        (
+            Phase * 2
+            - 1
+        )
+        * Jitter
+
+    return math.max(
+        0.03,
+        Base + Offset
+    )
+end
+
+    -- =============================================
+    -- LIMPEZA / LIFECYCLE
+    -- =============================================
+
+    local function SafeRemoveDrawing(Object)
+        if not Object then
+            return
+        end
+
+        pcall(function()
+            Object.Visible = false
+        end)
+
+        pcall(function()
+            Object:Remove()
+        end)
+    end
+
+
+    local function RemoveESP(plr)
+        local data =
+            ESP_Drawings[plr]
+
+        -- Limpa o cache mesmo se o Drawing
+        -- já tiver desaparecido.
+        VisibilityCache[plr] = nil
+
+        if not data then
+            return
+        end
+
+        if UseDrawing and UseSquare then
+            SafeRemoveDrawing(
+                data.Box
+            )
+
+            SafeRemoveDrawing(
+                data.HealthText
+            )
+
+            SafeRemoveDrawing(
+                data.NameText
+            )
+
+            SafeRemoveDrawing(
+                data.DistText
+            )
+
+        else
+            if data.Container then
+                pcall(function()
+                    data.Container:Destroy()
+                end)
+            end
+        end
+
+        -- Quebra nossas referências.
+        data.Box = nil
+        data.HealthText = nil
+        data.NameText = nil
+        data.DistText = nil
+        data.Container = nil
+
+        ESP_Drawings[plr] = nil
+    end
+
+
+    -- =============================================
+    -- PLAYER LIFECYCLE
+    -- =============================================
 
     local Players =
         game:GetService("Players")
 
-    local RunService =
-        game:GetService("RunService")
-
-    local Workspace =
-        game:GetService("Workspace")
-
-
-    ---------------------------------------------------------
-    -- CONFIG
-    ---------------------------------------------------------
-
-    local LocalPlayer =
-        Players.LocalPlayer
-
-    local ESPConfig =
-        Config.ESP
-
-    local MaxDistance =
-        tonumber(ESPConfig.MaxDistance)
-        or tonumber(_G.MaxESP_Dist)
-        or 150
-
-
-    ---------------------------------------------------------
-    -- STATE
-    ---------------------------------------------------------
-
-    local ESPObjects = {}
-
-    local RenderConnection = nil
     local PlayerRemovingConnection = nil
 
     local Destroyed = false
 
-
-    ---------------------------------------------------------
-    -- SCREEN GUI
-    ---------------------------------------------------------
-
-    local PlayerGui =
-        LocalPlayer:WaitForChild("PlayerGui")
-
-    local OldGui =
-        PlayerGui:FindFirstChild(
-            "Thekoudz_ESP"
+    PlayerRemovingConnection =
+        Players.PlayerRemoving:Connect(
+            function(plr)
+                RemoveESP(plr)
+            end
         )
 
-    if OldGui then
-        OldGui:Destroy()
+    -- =============================================
+    -- PLAYER SAIU DO SERVIDOR
+    -- =============================================
+
+    local Players = game:GetService("Players")
+
+    Players.PlayerRemoving:Connect(function(plr)
+        RemoveESP(plr)
+    end)
+
+local function IsTargetVisible(
+    LocalPlr,
+    Character,
+    Head,
+    Root
+)
+    local Camera =
+        workspace.CurrentCamera
+
+    if
+        not Camera
+        or not Character
+    then
+        return false
     end
 
+    -- Só atualiza o filtro quando
+    -- o Character local realmente muda.
+    if
+        LastLocalCharacter
+        ~= LocalPlr.Character
+    then
+        LastLocalCharacter =
+            LocalPlr.Character
 
-    local ScreenGui =
-        Instance.new("ScreenGui")
-
-    ScreenGui.Name =
-        "Thekoudz_ESP"
-
-    ScreenGui.IgnoreGuiInset =
-        true
-
-    ScreenGui.ResetOnSpawn =
-        false
-
-    ScreenGui.DisplayOrder =
-        999
-
-    ScreenGui.ZIndexBehavior =
-        Enum.ZIndexBehavior.Sibling
-
-    ScreenGui.Parent =
-        PlayerGui
-
-
-    ---------------------------------------------------------
-    -- BODY PART CHECK
-    ---------------------------------------------------------
-
-    local function IsBodyPart(Part)
-        if not Part:IsA("BasePart") then
-            return false
+        if LastLocalCharacter then
+            VisibilityParams
+                .FilterDescendantsInstances = {
+                    LastLocalCharacter
+                }
+        else
+            VisibilityParams
+                .FilterDescendantsInstances = {}
         end
-
-
-        -- Não deixa acessórios aumentarem a box
-        local Accessory =
-            Part:FindFirstAncestorWhichIsA(
-                "Accessory"
-            )
-
-        if Accessory then
-            return false
-        end
-
-
-        -- Não deixa armas/tools aumentarem a box
-        local Tool =
-            Part:FindFirstAncestorWhichIsA(
-                "Tool"
-            )
-
-        if Tool then
-            return false
-        end
-
-
-        return true
     end
 
+    local Origin =
+        Camera.CFrame.Position
 
-    ---------------------------------------------------------
-    -- PROJETA UMA PEÇA 3D
-    ---------------------------------------------------------
+    local Targets = {
+        Head,
+        Root
+    }
 
-    local function ProjectPart(
-        Part,
-        Camera,
-        Bounds
-    )
-        local Half =
-            Part.Size * 0.5
+    for _, TargetPart
+        in ipairs(Targets)
+    do
+        if TargetPart then
 
+            local Direction =
+                TargetPart.Position
+                - Origin
 
-        local Corners = {
-            Vector3.new(-Half.X, -Half.Y, -Half.Z),
-            Vector3.new(-Half.X, -Half.Y,  Half.Z),
-            Vector3.new(-Half.X,  Half.Y, -Half.Z),
-            Vector3.new(-Half.X,  Half.Y,  Half.Z),
+            local Result =
+                workspace:Raycast(
+                    Origin,
+                    Direction,
+                    VisibilityParams
+                )
 
-            Vector3.new( Half.X, -Half.Y, -Half.Z),
-            Vector3.new( Half.X, -Half.Y,  Half.Z),
-            Vector3.new( Half.X,  Half.Y, -Half.Z),
-            Vector3.new( Half.X,  Half.Y,  Half.Z),
-        }
+            if not Result then
+                return true
+            end
 
-
-        for _, Offset in ipairs(Corners) do
-
-            local WorldPosition =
-                Part.CFrame:
-                    PointToWorldSpace(
-                        Offset
+            if
+                Result.Instance
+                and Result.Instance
+                    :IsDescendantOf(
+                        Character
                     )
-
-
-            local ScreenPosition =
-                Camera:
-                    WorldToViewportPoint(
-                        WorldPosition
-                    )
-
-
-            -- Só considera pontos na frente da câmera
-            if ScreenPosition.Z > 0 then
-
-                Bounds.HasPoint =
-                    true
-
-
-                Bounds.MinX =
-                    math.min(
-                        Bounds.MinX,
-                        ScreenPosition.X
-                    )
-
-
-                Bounds.MinY =
-                    math.min(
-                        Bounds.MinY,
-                        ScreenPosition.Y
-                    )
-
-
-                Bounds.MaxX =
-                    math.max(
-                        Bounds.MaxX,
-                        ScreenPosition.X
-                    )
-
-
-                Bounds.MaxY =
-                    math.max(
-                        Bounds.MaxY,
-                        ScreenPosition.Y
-                    )
+            then
+                return true
             end
         end
     end
 
+    return false
+end
 
-    ---------------------------------------------------------
-    -- CALCULA BOX REAL DO PERSONAGEM
-    ---------------------------------------------------------
+    -- =============================================
+-- CACHE DO VISIBILITY CHECK
+-- =============================================
 
-    local function GetCharacterBounds(
-        Character,
-        Camera
-    )
-        local Bounds = {
-            MinX = math.huge,
-            MinY = math.huge,
-
-            MaxX = -math.huge,
-            MaxY = -math.huge,
-
-            HasPoint = false,
-        }
-
-
-        for _, Object in ipairs(
-            Character:GetDescendants()
-        ) do
-
-            if IsBodyPart(Object) then
-                ProjectPart(
-                    Object,
-                    Camera,
-                    Bounds
-                )
-            end
-        end
-
-
-        if not Bounds.HasPoint then
-            return nil
-        end
-
-
-        local Viewport =
-            Camera.ViewportSize
-
-
-        -- Personagem completamente fora da tela
-        if
-            Bounds.MaxX < 0
-            or Bounds.MinX > Viewport.X
-            or Bounds.MaxY < 0
-            or Bounds.MinY > Viewport.Y
-        then
-            return nil
-        end
-
-
-        -- Pequena margem para a box não colar na pele
-        local Padding =
-            tonumber(ESPConfig.BoxPadding)
-            or 2
-
-
-        local MinX =
-            Bounds.MinX - Padding
-
-        local MinY =
-            Bounds.MinY - Padding
-
-        local MaxX =
-            Bounds.MaxX + Padding
-
-        local MaxY =
-            Bounds.MaxY + Padding
-
-
-        -- Limita à viewport
-        MinX =
-            math.clamp(
-                MinX,
-                0,
-                Viewport.X
-            )
-
-        MinY =
-            math.clamp(
-                MinY,
-                0,
-                Viewport.Y
-            )
-
-        MaxX =
-            math.clamp(
-                MaxX,
-                0,
-                Viewport.X
-            )
-
-        MaxY =
-            math.clamp(
-                MaxY,
-                0,
-                Viewport.Y
-            )
-
-
-        local Width =
-            MaxX - MinX
-
-        local Height =
-            MaxY - MinY
-
-
-        if
-            Width <= 1
-            or Height <= 1
-        then
-            return nil
-        end
-
-
-        return {
-            X = MinX,
-            Y = MinY,
-
-            Width = Width,
-            Height = Height,
-
-            CenterX =
-                MinX + Width / 2,
-
-            CenterY =
-                MinY + Height / 2,
-        }
+local function GetCachedVisibility(
+    plr,
+    LocalPlr,
+    Character,
+    Head,
+    Root
+)
+    if not ESPConfig.VisibilityCheck then
+        return false
     end
 
+    local now =
+        os.clock()
 
-    ---------------------------------------------------------
-    -- TEXTO
-    ---------------------------------------------------------
+    local Cached =
+        VisibilityCache[plr]
 
-    local function CreateTextLabel(
-        Parent,
-        Font,
-        Size
-    )
-        local Label =
-            Instance.new("TextLabel")
+    -- =============================================
+    -- CACHE AINDA VÁLIDO
+    -- =============================================
 
-
-        Label.BackgroundTransparency =
-            1
-
-        Label.BorderSizePixel =
-            0
-
-        Label.TextColor3 =
-            Color3.new(1, 1, 1)
-
-        Label.TextStrokeColor3 =
-            Color3.new(0, 0, 0)
-
-        Label.TextStrokeTransparency =
-            0.35
-
-        Label.Font =
-            Font
-
-        Label.TextSize =
-            Size
-
-        Label.TextWrapped =
-            false
-
-        Label.ZIndex =
-            12
-
-        Label.Parent =
-            Parent
-
-
-        return Label
+    if
+        Cached
+        and Cached.Character
+            == Character
+        and now
+            < Cached.ExpiresAt
+    then
+        return Cached.Visible
     end
 
-
-    ---------------------------------------------------------
-    -- CRIA ESP PARA PLAYER
-    ---------------------------------------------------------
-
-    local function CreateESP(Player)
-
-        if ESPObjects[Player] then
-            return ESPObjects[Player]
-        end
-
-
-        -----------------------------------------------------
-        -- CONTAINER
-        -----------------------------------------------------
-
-        local Container =
-            Instance.new("Frame")
-
-
-        Container.Name =
-            "ESP_"
-            .. tostring(Player.UserId)
-
-        Container.BackgroundTransparency =
-            1
-
-        Container.BorderSizePixel =
-            0
-
-        Container.Visible =
-            false
-
-        Container.ClipsDescendants =
-            false
-
-        Container.ZIndex =
-            10
-
-        Container.Parent =
-            ScreenGui
-
-
-        -----------------------------------------------------
-        -- BOX
-        -----------------------------------------------------
-
-        local Box =
-            Instance.new("Frame")
-
-
-        Box.Name =
-            "Box"
-
-        Box.Size =
-            UDim2.fromScale(1, 1)
-
-        Box.Position =
-            UDim2.fromOffset(0, 0)
-
-        Box.BackgroundTransparency =
-            1
-
-        Box.BorderSizePixel =
-            0
-
-        Box.ZIndex =
-            10
-
-        Box.Parent =
-            Container
-
-
-        local Stroke =
-            Instance.new("UIStroke")
-
-
-        Stroke.Name =
-            "BoxStroke"
-
-        Stroke.ApplyStrokeMode =
-            Enum.ApplyStrokeMode.Border
-
-        Stroke.LineJoinMode =
-            Enum.LineJoinMode.Miter
-
-        Stroke.Thickness =
-            tonumber(
-                ESPConfig.BoxThickness
-            )
-            or 1
-
-
-        Stroke.Color =
-            ESPConfig.BoxColor
-            or Color3.new(1, 1, 1)
-
-        Stroke.Transparency =
-            0
-
-        Stroke.Parent =
-            Box
-
-
-        -----------------------------------------------------
-        -- NAME
-        -----------------------------------------------------
-
-        local NameText =
-            CreateTextLabel(
-                Container,
-                Enum.Font.GothamBold,
-                14
-            )
-
-
-        NameText.Name =
-            "Name"
-
-        NameText.AnchorPoint =
-            Vector2.new(0.5, 1)
-
-        NameText.Size =
-            UDim2.fromOffset(
-                200,
-                20
-            )
-
-        NameText.Position =
-            UDim2.new(
-                0.5,
-                0,
-                0,
-                -4
-            )
-
-        NameText.TextXAlignment =
-            Enum.TextXAlignment.Center
-
-
-        -----------------------------------------------------
-        -- DISTANCE
-        -----------------------------------------------------
-
-        local DistanceText =
-            CreateTextLabel(
-                Container,
-                Enum.Font.Gotham,
-                12
-            )
-
-
-        DistanceText.Name =
-            "Distance"
-
-        DistanceText.AnchorPoint =
-            Vector2.new(0.5, 0)
-
-        DistanceText.Size =
-            UDim2.fromOffset(
-                200,
-                18
-            )
-
-        DistanceText.Position =
-            UDim2.new(
-                0.5,
-                0,
-                1,
-                4
-            )
-
-        DistanceText.TextXAlignment =
-            Enum.TextXAlignment.Center
-
-
-        -----------------------------------------------------
-        -- HEALTH
-        -----------------------------------------------------
-
-        local HealthText =
-            CreateTextLabel(
-                Container,
-                Enum.Font.Gotham,
-                12
-            )
-
-
-        HealthText.Name =
-            "Health"
-
-        HealthText.AnchorPoint =
-            Vector2.new(1, 0)
-
-        HealthText.Size =
-            UDim2.fromOffset(
-                75,
-                18
-            )
-
-        HealthText.Position =
-            UDim2.new(
-                0,
-                -5,
-                0,
-                0
-            )
-
-        HealthText.TextXAlignment =
-            Enum.TextXAlignment.Right
-
-
-        -----------------------------------------------------
-        -- SAVE
-        -----------------------------------------------------
-
-        local Data = {
-            Container = Container,
-
-            Box = Box,
-            Stroke = Stroke,
-
-            NameText = NameText,
-            DistanceText = DistanceText,
-            HealthText = HealthText,
-        }
-
-
-        ESPObjects[Player] =
-            Data
-
-
-        return Data
-    end
-
-
-    ---------------------------------------------------------
-    -- REMOVE
-    ---------------------------------------------------------
-
-    local function RemoveESP(Player)
-
-        local Data =
-            ESPObjects[Player]
-
-
-        if not Data then
-            return
-        end
-
-
-        if Data.Container then
-            Data.Container:
-                Destroy()
-        end
-
-
-        ESPObjects[Player] =
-            nil
-    end
-
-
-    ---------------------------------------------------------
-    -- HIDE
-    ---------------------------------------------------------
-
-    local function HideESP(Player)
-
-        local Data =
-            ESPObjects[Player]
-
-
-        if
-            Data
-            and Data.Container
-        then
-            Data.Container.Visible =
-                false
-        end
-    end
-
-
-    ---------------------------------------------------------
-    -- UPDATE DE UM PLAYER
-    ---------------------------------------------------------
-
-    local function UpdatePlayer(
-        Player,
-        Camera,
-        LocalRoot
-    )
-        if Player == LocalPlayer then
-            return
-        end
-
-
-        local Character =
-            Player.Character
-
-
-        if not Character then
-            HideESP(Player)
-            return
-        end
-
-
-        local Root =
-            Character:
-                FindFirstChild(
-                    "HumanoidRootPart"
-                )
-
-
-        local Humanoid =
-            Character:
-                FindFirstChildOfClass(
-                    "Humanoid"
-                )
-
-
-        if
-            not Root
-            or not Humanoid
-            or Humanoid.Health <= 0
-        then
-            HideESP(Player)
-            return
-        end
-
-
-        -----------------------------------------------------
-        -- DISTANCE
-        -----------------------------------------------------
-
-        local Distance = 0
-
-
-        if LocalRoot then
-            Distance =
-                math.floor(
-                    (
-                        Root.Position
-                        - LocalRoot.Position
-                    ).Magnitude
-                )
-        end
-
-
-        if Distance > MaxDistance then
-            HideESP(Player)
-            return
-        end
-
-
-        -----------------------------------------------------
-        -- SCREEN BOUNDS
-        -----------------------------------------------------
-
-        local Bounds =
-            GetCharacterBounds(
-                Character,
-                Camera
-            )
-
-
-        if not Bounds then
-            HideESP(Player)
-            return
-        end
-
-
-        -----------------------------------------------------
-        -- GET / CREATE UI
-        -----------------------------------------------------
-
-        local Data =
-            CreateESP(Player)
-
-
-        -----------------------------------------------------
-        -- POSITION + SIZE
-        -----------------------------------------------------
-
-        Data.Container.Position =
-            UDim2.fromOffset(
-                math.floor(Bounds.X),
-                math.floor(Bounds.Y)
-            )
-
-
-        Data.Container.Size =
-            UDim2.fromOffset(
-                math.ceil(Bounds.Width),
-                math.ceil(Bounds.Height)
-            )
-
-
-        Data.Container.Visible =
-            true
-
-
-        -----------------------------------------------------
-        -- BOX
-        -----------------------------------------------------
-
-        Data.Box.Visible =
-            ESPConfig.DrawBox ~= false
-
-
-        Data.Stroke.Color =
-            ESPConfig.BoxColor
-            or Color3.new(1, 1, 1)
-
-
-        Data.Stroke.Thickness =
-            tonumber(
-                ESPConfig.BoxThickness
-            )
-            or 1
-
-
-        -----------------------------------------------------
-        -- NAME
-        -----------------------------------------------------
-
-        Data.NameText.Visible =
-            ESPConfig.DrawName ~= false
-
-
-        Data.NameText.Text =
-            Player.Name
-
-
-        -----------------------------------------------------
-        -- DISTANCE
-        -----------------------------------------------------
-
-        Data.DistanceText.Visible =
-            ESPConfig.DrawDistance ~= false
-
-
-        Data.DistanceText.Text =
-            tostring(Distance)
-            .. " M"
-
-
-        -----------------------------------------------------
-        -- HEALTH
-        -----------------------------------------------------
-
-        Data.HealthText.Visible =
-            ESPConfig.DrawHealth ~= false
-
-
-        Data.HealthText.Text =
-            string.format(
-                "%d/%d",
-                math.floor(Humanoid.Health),
-                math.floor(Humanoid.MaxHealth)
-            )
-    end
-
-
-    ---------------------------------------------------------
-    -- UPDATE GERAL
-    ---------------------------------------------------------
-
+    -- =============================================
+    -- CACHE EXPIROU
+    -- =============================================
+
+    local Visible =
+        IsTargetVisible(
+            LocalPlr,
+            Character,
+            Head,
+            Root
+        )
+
+    local Interval =
+        GetVisibilityInterval(plr)
+
+    VisibilityCache[plr] = {
+        Visible = Visible,
+
+        Character =
+            Character,
+
+        ExpiresAt =
+            now + Interval
+    }
+
+    return Visible
+end
+  
+    _G.MaxESP_Dist = _G.MaxESP_Dist or Config.MaxESP_Dist or 1000
+    
     local function UpdateESP()
+        if not ESPConfig.Enabled then
+            for _, data in pairs(ESP_Drawings) do
+                if UseDrawing and UseSquare then
+                    if data.Box then
+                        data.Box.Visible = false
+                    end
 
-        if
-            Destroyed
-            or not ESPConfig.Enabled
-        then
+                    if data.HealthText then
+                        data.HealthText.Visible = false
+                    end
+
+                    if data.NameText then
+                        data.NameText.Visible = false
+                    end
+
+                    if data.DistText then
+                        data.DistText.Visible = false
+                    end
+                else
+                    if data.Container then
+                        data.Container.Enabled = false
+                    end
+                end
+            end
+
             return
         end
 
+        local LocalPlr = Players.LocalPlayer
+        local LocalRoot = LocalPlr.Character
+            and LocalPlr.Character:FindFirstChild("HumanoidRootPart")
 
-        local Camera =
-            Workspace.CurrentCamera
-
+        local Camera = workspace.CurrentCamera
 
         if not Camera then
             return
         end
 
+        for _, plr in pairs(Players:GetPlayers()) do
 
-        local LocalCharacter =
-            LocalPlayer.Character
+            -- Ignora o próprio jogador
+            if plr == LocalPlr then
+                continue
+            end
 
+            -- =============================================
+            -- PLAYER SEM CHARACTER
+            -- =============================================
 
-        local LocalRoot =
-            LocalCharacter
-            and LocalCharacter:
-                FindFirstChild(
-                    "HumanoidRootPart"
+            if not plr.Character then
+                RemoveESP(plr)
+                continue
+            end
+
+            local Root = plr.Character:FindFirstChild("HumanoidRootPart")
+            local Head = plr.Character:FindFirstChild("Head")
+            local Humanoid = plr.Character:FindFirstChildOfClass("Humanoid")
+
+            -- Se alguma peça necessária desaparecer,
+            -- limpa o ESP antigo.
+            if not Root or not Head or not Humanoid then
+                RemoveESP(plr)
+                continue
+            end
+
+            -- =============================================
+            -- DISTÂNCIA
+            -- =============================================
+
+            local Distance =
+                LocalRoot
+                and math.floor((Root.Position - LocalRoot.Position).Magnitude)
+                or 0
+
+            if Distance > _G.MaxESP_Dist then
+                if ESP_Drawings[plr] then
+                    if UseDrawing and UseSquare then
+                        if ESP_Drawings[plr].Box then
+                            ESP_Drawings[plr].Box.Visible = false
+                        end
+
+                        if ESP_Drawings[plr].HealthText then
+                            ESP_Drawings[plr].HealthText.Visible = false
+                        end
+
+                        if ESP_Drawings[plr].NameText then
+                            ESP_Drawings[plr].NameText.Visible = false
+                        end
+
+                        if ESP_Drawings[plr].DistText then
+                            ESP_Drawings[plr].DistText.Visible = false
+                        end
+                    else
+                        if ESP_Drawings[plr].Container then
+                            ESP_Drawings[plr].Container.Enabled = false
+                        end
+                    end
+                end
+
+                continue
+            end
+
+            -- =============================================
+            -- CÁLCULO DA BOX
+            -- =============================================
+
+local function GetCharacterScreenBounds(Character, Camera)
+    local BoundingCFrame, BoundingSize =
+        Character:GetBoundingBox()
+
+    local Half =
+        BoundingSize / 2
+
+    local Corners = {
+        Vector3.new(-Half.X, -Half.Y, -Half.Z),
+        Vector3.new(-Half.X, -Half.Y,  Half.Z),
+        Vector3.new(-Half.X,  Half.Y, -Half.Z),
+        Vector3.new(-Half.X,  Half.Y,  Half.Z),
+
+        Vector3.new( Half.X, -Half.Y, -Half.Z),
+        Vector3.new( Half.X, -Half.Y,  Half.Z),
+        Vector3.new( Half.X,  Half.Y, -Half.Z),
+        Vector3.new( Half.X,  Half.Y,  Half.Z),
+    }
+
+    local MinX = math.huge
+    local MinY = math.huge
+
+    local MaxX = -math.huge
+    local MaxY = -math.huge
+
+    local HasVisiblePoint = false
+
+    for _, Offset in ipairs(Corners) do
+        local WorldPosition =
+            BoundingCFrame:
+                PointToWorldSpace(
+                    Offset
                 )
 
+        local ScreenPosition =
+            Camera:
+                WorldToViewportPoint(
+                    WorldPosition
+                )
 
-        for _, Player in ipairs(
-            Players:GetPlayers()
-        ) do
+        if ScreenPosition.Z > 0 then
+            HasVisiblePoint = true
 
-            UpdatePlayer(
-                Player,
-                Camera,
-                LocalRoot
-            )
+            MinX =
+                math.min(
+                    MinX,
+                    ScreenPosition.X
+                )
+
+            MinY =
+                math.min(
+                    MinY,
+                    ScreenPosition.Y
+                )
+
+            MaxX =
+                math.max(
+                    MaxX,
+                    ScreenPosition.X
+                )
+
+            MaxY =
+                math.max(
+                    MaxY,
+                    ScreenPosition.Y
+                )
         end
     end
 
+    if not HasVisiblePoint then
+        return nil
+    end
+
+    return {
+        X = MinX,
+        Y = MinY,
+
+        Width =
+            MaxX - MinX,
+
+        Height =
+            MaxY - MinY,
+
+        CenterX =
+            (MinX + MaxX) / 2,
+
+        CenterY =
+            (MinY + MaxY) / 2,
+    }
+end
+
+            -- =============================================
+            -- CRIA OS DESENHOS
+            -- =============================================
+
+if UseDrawing and UseSquare then
 
     ---------------------------------------------------------
-    -- HIDE ALL
+    -- BOX
     ---------------------------------------------------------
 
-    local function HideAll()
+    data.Box.Position =
+        Vector2.new(
+            X,
+            Y
+        )
 
-        for _, Data in pairs(
-            ESPObjects
-        ) do
+    data.Box.Size =
+        Vector2.new(
+            Width,
+            Height
+        )
 
-            if Data.Container then
-                Data.Container.Visible =
-                    false
+    data.Box.Color =
+        ESPConfig.BoxColor
+
+    data.Box.Visible =
+        ESPConfig.DrawBox
+
+
+    ---------------------------------------------------------
+    -- NOME
+    ---------------------------------------------------------
+
+    data.NameText.Position =
+        Vector2.new(
+            CenterX,
+            Y - 18
+        )
+
+    data.NameText.Visible =
+        ESPConfig.DrawName
+
+    data.NameText.Text =
+        plr.Name
+
+
+    ---------------------------------------------------------
+    -- DISTANCIA
+    ---------------------------------------------------------
+
+    data.DistText.Position =
+        Vector2.new(
+            CenterX,
+            Y + Height + 5
+        )
+
+    data.DistText.Visible =
+        ESPConfig.DrawDistance
+
+    data.DistText.Text =
+        Distance .. " M"
+
+
+    ---------------------------------------------------------
+    -- VIDA
+    ---------------------------------------------------------
+
+    data.HealthText.Position =
+        Vector2.new(
+            X - 5,
+            Y
+        )
+
+    data.HealthText.Visible =
+        ESPConfig.DrawHealth
+
+    data.HealthText.Text =
+        string.format(
+            "%d/%d",
+            Humanoid.Health,
+            Humanoid.MaxHealth
+        )
+
+                    -- =============================================
+                    -- FALLBACK GUI
+                    -- =============================================
+
+                    local gui = Instance.new("ScreenGui")
+                    gui.Name = guiNameStr
+                    gui.Parent = LocalPlr:WaitForChild("PlayerGui")
+                    gui.Enabled = true
+
+                    local boxFrame = Instance.new("Frame")
+                    boxFrame.Size = UDim2.new(0, 0, 0, 0)
+                    boxFrame.BackgroundTransparency = 1
+                    boxFrame.BorderSizePixel = 1
+                    boxFrame.BorderColor3 = ESPConfig.BoxColor
+                    boxFrame.Parent = gui
+
+                    local nameLabel = Instance.new("TextLabel")
+                    nameLabel.Size = UDim2.new(0, 150, 0, 20)
+                    nameLabel.BackgroundTransparency = 1
+                    nameLabel.TextColor3 = Color3.new(1, 1, 1)
+                    nameLabel.TextStrokeTransparency = 0.5
+                    nameLabel.Font = Enum.Font.GothamBold
+                    nameLabel.TextScaled = true
+                    nameLabel.Parent = gui
+
+                    local distLabel = Instance.new("TextLabel")
+                    distLabel.Size = UDim2.new(0, 150, 0, 20)
+                    distLabel.BackgroundTransparency = 1
+                    distLabel.TextColor3 = Color3.new(1, 1, 1)
+                    distLabel.TextStrokeTransparency = 0.5
+                    distLabel.Font = Enum.Font.Gotham
+                    distLabel.TextScaled = true
+                    distLabel.Parent = gui
+
+                    local healthLabel = Instance.new("TextLabel")
+                    healthLabel.Size = UDim2.new(0, 150, 0, 20)
+                    healthLabel.BackgroundTransparency = 1
+                    healthLabel.TextColor3 = Color3.new(1, 1, 1)
+                    healthLabel.TextStrokeTransparency = 0.5
+                    healthLabel.Font = Enum.Font.Gotham
+                    healthLabel.TextScaled = true
+                    healthLabel.TextXAlignment = Enum.TextXAlignment.Center
+                    healthLabel.Parent = gui
+
+                    ESP_Drawings[plr] = {
+                        Box = boxFrame,
+                        NameText = nameLabel,
+                        DistText = distLabel,
+                        HealthText = healthLabel,
+                        Container = gui
+                    }
+                end
+            end
+
+            local data = ESP_Drawings[plr]
+
+            -- =============================================
+            -- ATUALIZA DESENHOS
+            -- =============================================
+
+            if UseDrawing and UseSquare then
+
+                -- BOX
+                data.Box.Visible = ESPConfig.DrawBox
+                data.Box.Position = Vector2.new(X, Y)
+                data.Box.Size = Vector2.new(Width, Height)
+                if ESPConfig.VisibilityCheck and TargetVisible then
+                data.Box.Color = ESPConfig.VisibleBoxColor
+                else
+                data.Box.Color = ESPConfig.BoxColor
+                end
+
+                -- NOME EM CIMA
+                data.NameText.Visible = ESPConfig.DrawName
+                data.NameText.Position =
+                    Vector2.new(CenterPos.X, Y - 40)
+                data.NameText.Text = plr.Name
+
+                -- DISTÂNCIA ABAIXO DO NOME
+                data.DistText.Visible = ESPConfig.DrawDistance
+                data.DistText.Position =
+                    Vector2.new(CenterPos.X, Y - 20)
+                data.DistText.Text = Distance .. " M"
+
+                -- VIDA EMBAIXO DA BOX
+                data.HealthText.Visible = ESPConfig.DrawHealth
+                data.HealthText.Center = true
+                data.HealthText.Position =
+                    Vector2.new(
+                        CenterPos.X,
+                        Y + Height + 5
+                    )
+                data.HealthText.Text =
+                    string.format(
+                        "%d/%d",
+                        Humanoid.Health,
+                        Humanoid.MaxHealth
+                    )
+
+            else
+
+                data.Container.Enabled = true
+
+                -- BOX
+                data.Box.Size =
+                    UDim2.new(0, Width, 0, Height)
+
+                data.Box.Position =
+                    UDim2.new(0, X, 0, Y)
+
+                data.Box.BorderColor3 =
+                    ESPConfig.BoxColor
+
+                data.Box.Visible =
+                    ESPConfig.DrawBox
+
+                -- NOME EM CIMA
+                data.NameText.Position =
+                    UDim2.new(
+                        0,
+                        CenterPos.X - 75,
+                        0,
+                        Y - 40
+                    )
+
+                data.NameText.Visible =
+                    ESPConfig.DrawName
+
+                data.NameText.Text =
+                    plr.Name
+
+                -- DISTÂNCIA ABAIXO DO NOME
+                data.DistText.Position =
+                    UDim2.new(
+                        0,
+                        CenterPos.X - 75,
+                        0,
+                        Y - 20
+                    )
+
+                data.DistText.Visible =
+                    ESPConfig.DrawDistance
+
+                data.DistText.Text =
+                    Distance .. " M"
+
+                -- VIDA EMBAIXO DA BOX
+                data.HealthText.Position =
+                    UDim2.new(
+                        0,
+                        CenterPos.X - 75,
+                        0,
+                        Y + Height + 5
+                    )
+
+                data.HealthText.Visible =
+                    ESPConfig.DrawHealth
+
+                data.HealthText.TextXAlignment =
+                    Enum.TextXAlignment.Center
+
+                data.HealthText.Text =
+                    string.format(
+                        "%d/%d",
+                        Humanoid.Health,
+                        Humanoid.MaxHealth
+                    )
             end
         end
     end
 
+     -- =============================================
+    -- LÓGICA DE LIGAR / DESLIGAR / DESTROY
+    -- =============================================
 
-    ---------------------------------------------------------
-    -- TOGGLE
-    ---------------------------------------------------------
+    local ESPThread = nil
+
+
+    local function CleanupAll()
+        -- Faz uma lista antes de remover.
+        -- Assim não modificamos a tabela enquanto
+        -- percorremos diretamente com pairs().
+        local PlayersToRemove = {}
+
+        for plr in pairs(
+            ESP_Drawings
+        ) do
+            PlayersToRemove[
+                #PlayersToRemove + 1
+            ] = plr
+        end
+
+        for _, plr in ipairs(
+            PlayersToRemove
+        ) do
+            RemoveESP(plr)
+        end
+
+        -- Garantia extra.
+        table.clear(
+            ESP_Drawings
+        )
+
+        table.clear(
+            VisibilityCache
+        )
+
+        -- Libera referências usadas
+        -- pelo visibility check.
+        LastLocalCharacter = nil
+
+        VisibilityParams
+            .FilterDescendantsInstances = {}
+    end
+
 
     local function ToggleESP(State)
-
         if Destroyed then
             return
         end
-
 
         ESPConfig.Enabled =
             State == true
 
+        -- =========================================
+        -- LIGAR
+        -- =========================================
 
         if ESPConfig.Enabled then
+            -- Já existe uma thread ativa.
+            if ESPThread then
+                return
+            end
 
-            ScreenGui.Enabled =
-                true
-
-
-            if not RenderConnection then
-
-                RenderConnection =
-                    RunService.RenderStepped:
-                        Connect(
-                            UpdateESP
+            ESPThread =
+                task.spawn(function()
+                    local RS =
+                        game:GetService(
+                            runServiceStr
                         )
-            end
 
+                    while
+                        ESPConfig.Enabled
+                        and not Destroyed
+                    do
+                        UpdateESP()
 
-            UpdateESP()
+                        RS.RenderStepped:Wait()
+                    end
 
-        else
+                    ESPThread = nil
+                end)
 
-            if RenderConnection then
-
-                RenderConnection:
-                    Disconnect()
-
-                RenderConnection =
-                    nil
-            end
-
-
-            HideAll()
-
-
-            ScreenGui.Enabled =
-                false
+            return
         end
+
+        -- =========================================
+        -- DESLIGAR
+        -- =========================================
+
+        CleanupAll()
     end
 
 
-    ---------------------------------------------------------
-    -- PLAYER REMOVING
-    ---------------------------------------------------------
-
-    PlayerRemovingConnection =
-        Players.PlayerRemoving:
-            Connect(
-                RemoveESP
-            )
-
-
-    ---------------------------------------------------------
-    -- DESTROY
-    ---------------------------------------------------------
-
     local function Destroy()
-
         if Destroyed then
             return
         end
 
-
-        Destroyed =
-            true
+        Destroyed = true
 
         ESPConfig.Enabled =
             false
 
+        -- Remove drawings, GUIs,
+        -- caches e referências.
+        CleanupAll()
 
-        if RenderConnection then
-
-            RenderConnection:
-                Disconnect()
-
-            RenderConnection =
-                nil
-        end
-
-
+        -- Remove conexão criada
+        -- pelo módulo.
         if PlayerRemovingConnection then
-
-            PlayerRemovingConnection:
-                Disconnect()
+            PlayerRemovingConnection
+                :Disconnect()
 
             PlayerRemovingConnection =
                 nil
         end
-
-
-        for Player in pairs(
-            ESPObjects
-        ) do
-            RemoveESP(Player)
-        end
-
-
-        if ScreenGui then
-            ScreenGui:
-                Destroy()
-        end
     end
 
 
-    ---------------------------------------------------------
-    -- AUTO INIT
-    ---------------------------------------------------------
-
-    if ESPConfig.Enabled then
-        ToggleESP(true)
-    end
-
-
-    ---------------------------------------------------------
-    -- API
-    ---------------------------------------------------------
+    -- =============================================
+    -- API PÚBLICA
+    -- =============================================
 
     return {
-        Toggle =
-            ToggleESP,
-
-        Destroy =
-            Destroy,
+        Toggle = ToggleESP,
+        Destroy = Destroy,
     }
 end
-
 
 return ESP
